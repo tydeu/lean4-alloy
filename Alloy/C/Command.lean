@@ -23,21 +23,19 @@ def elabExternCInclude : CommandElab := fun stx =>
   | _ =>
     throwError "ill-formed external C include"
 
-def toLowerSnakeCase : Name → String
-| Name.anonymous => "_"
-| Name.str Name.anonymous s _ => s.toLower
-| Name.num Name.anonymous n _ => "_" ++ toString n
-| Name.str p s _ => toLowerSnakeCase p ++ "_" ++ s.toLower
-| Name.num p n _ => toLowerSnakeCase p ++ "_" ++ toString n
+def toLowerName : Name → Name
+| Name.str p s _ => Name.mkStr (toLowerName p) s.toLower
+| n => n
 
 @[commandElab externCDecl]
 def elabExternCDecl : CommandElab := fun stx =>
   match stx with
-  | `($[$doc?:docComment]? extern c $[$sym?]? def $id $sig := $body) => do
+  | `($[$doc?]? extern c $[$sym?]? def $id $sig := $body) => do
     if body.reprint.isNone then
       throwErrorAt body "body is ill-formed (cannot be printed)"
     let name := (← getCurrNamespace) ++ id[0].getId
-    let symLit := sym?.getD <| Syntax.mkStrLit <| toLowerSnakeCase name
+    let defaultSym := name.toStringWithSep "_" false
+    let symLit := sym?.getD <| Syntax.mkStrLit <| defaultSym
     let exp ← `($[$doc?]? @[extern $symLit:strLit] constant $id $sig)
     withMacroExpansion stx exp <| elabCommand exp
     modifyEnv fun env => C.implExt.insert env name body

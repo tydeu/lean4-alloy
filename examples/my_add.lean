@@ -1,6 +1,6 @@
 import Alloy.C
 
-open Alloy.C
+open scoped Alloy.C
 
 namespace Foo
 

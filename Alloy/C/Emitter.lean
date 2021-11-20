@@ -35,6 +35,7 @@ def emitParams (type : Expr) (ps : Array IR.Param)  : EmitM PUnit := do
   emit ")"
 
 def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) : EmitM PUnit := do
+  emit "LEAN_EXPORT "
   emitType decl.resultType
   emit " "
   emit name
