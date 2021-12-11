@@ -13,7 +13,7 @@ def compileCShim (leanFile : FilePath) : IO String := do
 
 def main (args : List String): IO UInt32 := do
   if h : 0 < args.length then
-    Lean.initSearchPath
+    Lean.initSearchPath (← Lean.findSysroot?)
     let file := args.get 0 h
     try
       IO.println <| ← compileCShim file
