@@ -13,8 +13,8 @@ def EmitM.toString (self : EmitM PUnit) : String :=
 def emit (str : String) : EmitM PUnit :=
   modify fun s => s ++ str
 
-def emitInclude (path : String) : EmitM PUnit :=
-  emit s!"#include \"{path}\"\n"
+def emitLn (str : String) : EmitM PUnit := do
+  emit str; emit "\n"
 
 def emitType (type : IR.IRType) : EmitM PUnit :=
   emit (IR.EmitC.toCType type)
@@ -30,8 +30,11 @@ def emitParams (type : Expr) (ps : Array IR.Param)  : EmitM PUnit := do
     let p := ps[i]
     emitType p.ty
     emit " "
-    emit fType.bindingName!.toString
-    fType := fType.bindingBody!
+    if fType.isBinding then
+      emit fType.bindingName!.toString
+      fType := fType.bindingBody!
+    else
+      emit s!"_{i}"
   emit ")"
 
 def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) : EmitM PUnit := do
@@ -41,14 +44,13 @@ def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) 
   emit name
   emitParams type decl.params
   emit " "
-  emit impl.reprint.get!
+  emitLn impl.reprint.get!.trim
 
 def emitLocalShim (env : Environment) : EmitM PUnit := do
-  emitInclude "lean/lean.h"
-  for include in C.includeExt.getEntries env do
-    emitInclude include
+  for cmd in C.cmdExt.getEntries env do
+    emitLn cmd.reprint.get!.trim
   for (declName, impl) in C.implExt.getLocalEntries env do
     if let some info := env.find? declName then
     if let some decl := IR.findEnvDecl env declName then
     if let some name := getExternNameFor env `c decl.name then
-      emit "\n"; emitDeclImpl name decl info.type impl
+      emitDeclImpl name decl info.type impl

@@ -1,5 +1,7 @@
 import Alloy.C.Syntax
 import Alloy.C.Extension
+import Lean.Compiler.NameMangling
+import Lean.Elab
 
 namespace Alloy.C
 
@@ -7,37 +9,32 @@ open Lean
 
 open Parser Command
 
-scoped syntax (name := externCInclude)
-"extern " &"c " &"include " str : command
+scoped syntax (name := preludeDecl)
+"alloy " &"c " &"prelude" ppLine cCmd+ ppLine "end" : command
 
-scoped syntax (name := externCDecl) «docComment»?
-"extern " &"c " «str»? "def " declId declSig " := " cStmt : command
+scoped syntax (name := externDecl) «docComment»?
+"alloy " &"c " &"extern " «str»? "def " declId declSig " := " cStmt : command
 
 open Elab Command
 
-@[commandElab externCInclude]
-def elabExternCInclude : CommandElab := fun stx =>
+@[commandElab preludeDecl]
+def elabPreludeDecl : CommandElab := fun stx =>
   match stx with
-  | `(extern c include $path) =>
-    modifyEnv fun env => C.includeExt.addEntry env path.isStrLit?.get!
+  | `(alloy c prelude $[$cmds]* end) =>
+    modifyEnv fun env => cmdExt.addEntries env cmds
   | _ =>
-    throwError "ill-formed external C include"
+    throwError "ill-formed C prelude"
 
-def toLowerName : Name → Name
-| Name.str p s _ => Name.mkStr (toLowerName p) s.toLower
-| n => n
-
-@[commandElab externCDecl]
-def elabExternCDecl : CommandElab := fun stx =>
+@[commandElab externDecl]
+def elabExternDecl : CommandElab := fun stx =>
   match stx with
-  | `($[$doc?]? extern c $[$sym?]? def $id $sig := $body) => do
+  | `($[$doc?]? alloy c extern $[$sym?]? def $id $sig := $body) => do
     if body.reprint.isNone then
       throwErrorAt body "body is ill-formed (cannot be printed)"
     let name := (← getCurrNamespace) ++ id[0].getId
-    let defaultSym := name.toStringWithSep "_" false
-    let symLit := sym?.getD <| Syntax.mkStrLit <| defaultSym
+    let symLit := sym?.getD <| Syntax.mkStrLit <| "_impl_" ++ name.mangle
     let exp ← `($[$doc?]? @[extern $symLit:strLit] constant $id $sig)
     withMacroExpansion stx exp <| elabCommand exp
-    modifyEnv fun env => C.implExt.insert env name body
+    modifyEnv fun env => implExt.insert env name body
   | _ =>
     throwError "ill-formed external C definition"
