@@ -33,7 +33,7 @@ def elabExternDecl : CommandElab := fun stx =>
       throwErrorAt body "body is ill-formed (cannot be printed)"
     let name := (← getCurrNamespace) ++ id[0].getId
     let symLit := sym?.getD <| Syntax.mkStrLit <| "_impl_" ++ name.mangle
-    let exp ← `($[$doc?]? @[extern $symLit:strLit] constant $id $sig)
+    let exp ← `($[$doc?]? @[extern $symLit:str] constant $id $sig)
     withMacroExpansion stx exp <| elabCommand exp
     modifyEnv fun env => implExt.insert env name body
   | _ =>
