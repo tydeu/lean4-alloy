@@ -26,9 +26,9 @@ typedef struct {
 
 end
 
-constant SPointed : PointedType
-def S : Type := SPointed.type
-instance : Inhabited S := ⟨SPointed.val⟩
+constant SNonempty : NonemptyType
+def S : Type := SNonempty.type
+instance : Nonempty S := SNonempty.property
 
 local syntax "S" : cTypeSpec
 
@@ -69,9 +69,9 @@ end
 --------------------------------------------------------------------------------
 
 alloy c extern "lean_mk_S"
-def mkS (x y : UInt32) (str : @& String) : S := {
+def mkS (x y : UInt32) (string : @& String) : S := {
   S* s = malloc(sizeof(S));
-  s->m_s = str;
+  s->m_s = string;
   return S_to_lean(s);
 }
 
