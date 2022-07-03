@@ -5,7 +5,7 @@ namespace Alloy
 open Lean Parser PrettyPrinter
 
 def raw (fn : ParserFn) (trailingWs := false) : Parser where
-  fn := rawFn fn
+  fn := rawFn fn trailingWs
 
 @[combinatorFormatter Alloy.raw] def raw.formatter :=
   Formatter.visitAtom Name.anonymous

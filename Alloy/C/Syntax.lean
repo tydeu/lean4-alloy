@@ -1,4 +1,4 @@
-import Alloy.ParserUtil
+import Alloy.Util.Parser
 
 namespace Alloy.C
 

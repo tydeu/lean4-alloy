@@ -3,25 +3,27 @@ import Lean.Elab.Frontend
 
 open Lean System Alloy
 
-def compileCShim (leanFile : FilePath) : IO String := do
+def compileCShim (leanFile : FilePath) (outFile? : Option FilePath) : IO PUnit := do
   let input ← IO.FS.readFile leanFile
-  let (env, ok) ← Lean.Elab.runFrontend input Options.empty leanFile.toString `main
+  let (env, ok) ← Elab.runFrontend input Options.empty leanFile.toString `main
   if ok then
-    return Alloy.C.emitLocalShim env |>.toString
+    if let some outFile := outFile? then
+      EmitFileM.run outFile <| C.emitLocalShim env
+    else
+      EmitStreamM.run (← IO.getStdout) <| C.emitLocalShim env
   else
     throw <| IO.userError s!"file {leanFile} has errors"
 
-def main (args : List String): IO UInt32 := do
-  if h : 0 < args.length then
-    Lean.initSearchPath (← Lean.findSysroot)
-    let file := args.get ⟨0, h⟩
+def main (args : List String) : IO UInt32 := do
+  if let leanFile :: args := args then
     try
-      IO.println <| ← compileCShim file
+      Lean.initSearchPath (← Lean.findSysroot)
+      compileCShim leanFile args.head?
       return 0
     catch e =>
       IO.eprintln s!"error: {toString e}"
       return 1
   else
-    let appName := (← IO.appPath).fileName.getD "extern"
-    IO.eprintln s!"Usage: {appName} lean-file"
+    let appName := (← IO.appPath).fileName.getD "alloy"
+    IO.eprintln s!"Usage: {appName} lean-file [out-file]"
     return 1

@@ -1,25 +1,20 @@
+import Alloy.Util.Emit
 import Alloy.C.Extension
 import Lean.Compiler.IR.EmitC
 
+open Lean
+open IR (IRType)
+
 namespace Alloy.C
 
-open Lean
+/-! ## C Emitter -/
 
-abbrev EmitM := StateM String
+variable [Monad m] [MonadEmit m]
 
-def EmitM.toString (self : EmitM PUnit) : String :=
-  self.run "" |>.run.2
-
-def emit (str : String) : EmitM PUnit :=
-  modify fun s => s ++ str
-
-def emitLn (str : String) : EmitM PUnit := do
-  emit str; emit "\n"
-
-def emitType (type : IR.IRType) : EmitM PUnit :=
+def emitType (type : IRType) : m PUnit :=
   emit (IR.EmitC.toCType type)
 
-def emitParams (type : Expr) (ps : Array IR.Param)  : EmitM PUnit := do
+def emitParams (type : Expr) (ps : Array IR.Param) : m PUnit := do
   emit "("
   let mut fType := type
   -- Lean omits irrelevant parameters for extern constants
@@ -37,7 +32,7 @@ def emitParams (type : Expr) (ps : Array IR.Param)  : EmitM PUnit := do
       emit s!"_{i}"
   emit ")"
 
-def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) : EmitM PUnit := do
+def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) : m PUnit := do
   emit "LEAN_EXPORT "
   emitType decl.resultType
   emit " "
@@ -46,7 +41,7 @@ def emitDeclImpl (name : String) (decl : IR.Decl) (type : Expr) (impl : Syntax) 
   emit " "
   emitLn impl.reprint.get!.trim
 
-def emitLocalShim (env : Environment) : EmitM PUnit := do
+def emitLocalShim (env : Environment) : m PUnit := do
   for cmd in C.cmdExt.getEntries env do
     emitLn cmd.reprint.get!.trim
   for (declName, impl) in C.implExt.getLocalEntries env do
