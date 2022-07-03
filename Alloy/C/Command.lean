@@ -29,11 +29,11 @@ def elabPreludeDecl : CommandElab := fun stx =>
 def elabExternDecl : CommandElab := fun stx =>
   match stx with
   | `($[$doc?]? alloy c extern $[$sym?]? def $id $sig := $body) => do
-    if body.reprint.isNone then
+    if body.raw.reprint.isNone then
       throwErrorAt body "body is ill-formed (cannot be printed)"
-    let name := (← getCurrNamespace) ++ id[0].getId
+    let name := (← getCurrNamespace) ++ id.raw[0].getId
     let symLit := sym?.getD <| Syntax.mkStrLit <| "_impl_" ++ name.mangle
-    let exp ← `($[$doc?]? @[extern $symLit:str] constant $id $sig)
+    let exp ← `($[$doc?]? @[extern $symLit:str] opaque $id $sig)
     withMacroExpansion stx exp <| elabCommand exp
     modifyEnv fun env => implExt.insert env name body
   | _ =>

@@ -1,17 +1,25 @@
 import Lake
 open Lake DSL System
 
-package alloy {
+package alloy
+
+lean_lib Alloy
+
+@[defaultTarget]
+lean_exe alloy {
+  root := `Main
   supportInterpreter := true
 }
 
-def runAlloy (path : FilePath) : IO PUnit := do
-  let alloyLib := FilePath.mk "build" / "lib"
-  let alloyPath := FilePath.mk "build" / "bin" / "alloy"
+--------------------------------------------------------------------------------
+
+def runAlloy (path : FilePath) : LakeT IO PUnit := do
+  let some alloyExe ← findLeanExe? &`alloy
+    | error "no alloy executable configuration found in workspace"
   let alloy ← IO.Process.spawn {
-    cmd := alloyPath.withExtension FilePath.exeExtension |>.toString
+    cmd := alloyExe.file.toString
     args := #[path.toString]
-    env := #[("LEAN_PATH", SearchPath.toString [alloyLib])]
+    env := ← getLeanEnv
   }
   let rc ← alloy.wait
   if rc ≠ 0 then

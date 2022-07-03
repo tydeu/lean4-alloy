@@ -24,10 +24,10 @@ def emitParams (type : Expr) (ps : Array IR.Param)  : EmitM PUnit := do
   let mut fType := type
   -- Lean omits irrelevant parameters for extern constants
   let ps := ps.filter fun p => !p.ty.isIrrelevant
-  for i in [0:ps.size] do
+  for h : i in [0:ps.size] do
     if i > 0 then
       emit ", "
-    let p := ps[i]
+    let p := ps[i, h.upper]
     emitType p.ty
     emit " "
     if fType.isBinding then

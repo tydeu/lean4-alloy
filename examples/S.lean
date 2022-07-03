@@ -26,9 +26,9 @@ typedef struct {
 
 end
 
-constant SNonempty : NonemptyType
-def S : Type := SNonempty.type
-instance : Nonempty S := SNonempty.property
+opaque S.nonemptyType : NonemptyType
+def S : Type := S.nonemptyType.type
+instance : Nonempty S := S.nonemptyType.property
 
 local syntax "S" : cTypeSpec
 
