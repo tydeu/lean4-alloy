@@ -22,7 +22,7 @@ def emitParams (type : Expr) (ps : Array IR.Param) : m PUnit := do
   for h : i in [0:ps.size] do
     if i > 0 then
       emit ", "
-    let p := ps[i, h.upper]
+    let p := ps[⟨i, h.upper⟩]
     emitType p.ty
     emit " "
     if fType.isBinding then

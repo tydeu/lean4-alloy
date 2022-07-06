@@ -19,7 +19,7 @@ def runAlloy (path : FilePath) : LakeT IO PUnit := do
   let alloy ← IO.Process.spawn {
     cmd := alloyExe.file.toString
     args := #[path.toString]
-    env := ← getLeanEnv
+    env := #[("LEAN_PATH", (← getLeanPath).toString)]
   }
   let rc ← alloy.wait
   if rc ≠ 0 then
