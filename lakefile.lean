@@ -3,6 +3,10 @@ open Lake DSL System
 
 package alloy
 
+--------------------------------------------------------------------------------
+-- # Alloy Build
+--------------------------------------------------------------------------------
+
 lean_lib Alloy
 
 @[defaultTarget]
@@ -12,22 +16,29 @@ lean_exe alloy {
 }
 
 --------------------------------------------------------------------------------
+-- # Module Facets
+--------------------------------------------------------------------------------
 
-def runAlloy (path : FilePath) : LakeT IO PUnit := do
-  let some alloyExe ← findLeanExe? &`alloy
+module_facet alloy.c : FilePath := fun mod => do
+  let some alloy ← findLeanExe? &`alloy
     | error "no alloy executable configuration found in workspace"
-  let alloy ← IO.Process.spawn {
-    cmd := alloyExe.file.toString
-    args := #[path.toString]
-    env := #[("LEAN_PATH", (← getLeanPath).toString)]
-  }
-  let rc ← alloy.wait
-  if rc ≠ 0 then
-    IO.println s!"error: compiling {path} with alloy failed with exit code {rc}"
+  let exeTarget ← alloy.exe.recBuild
+  let modTarget ← mod.leanBin.recBuild
+  let cFile := mod.irPath "alloy.c"
+  let task ← show SchedulerM _ from do
+    exeTarget.bindAsync fun exeFile exeTrace => do
+    modTarget.bindSync fun _ modTrace => do
+      let depTrace := exeTrace.mix modTrace
+      buildFileUnlessUpToDate cFile depTrace do
+        proc {
+          cmd := exeFile.toString
+          args := #[mod.leanFile.toString, cFile.toString]
+          env := #[("LEAN_PATH", (← getLeanPath).toString)]
+        }
+  return ActiveTarget.mk cFile  task
 
-script examples do
-  let exs: Array FilePath := #["my_add", "S"]
-  for ex in exs do
-    IO.println s!"compiling {ex} example ..."
-    runAlloy <| "examples" / ex.withExtension "lean"
-  return 0
+module_facet alloy.c.o : FilePath := fun mod => do
+  let oFile := mod.irPath "alloy.c.o"
+  let cTarget ← recBuild <| mod.facet &`alloy.c
+  let args := #["-I", (← getLeanIncludeDir).toString] ++ mod.leancArgs
+  oFileTarget oFile (Target.active cTarget) args "cc" |>.activate

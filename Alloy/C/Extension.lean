@@ -4,8 +4,20 @@ open Lean
 
 namespace Alloy.C
 
+unsafe def unsafeFindOrRegisterPersistentExt {α β σ : Type} [Inhabited σ]
+(name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ) := do
+  let pExts ← persistentEnvExtensionsRef.get
+  match pExts.find? (·.name == name) with
+  | some ext => unsafeCast ext
+  | none => register name
+
+@[implementedBy unsafeFindOrRegisterPersistentExt]
+opaque findOrRegisterPersistentExt {α β σ : Type} [Inhabited σ]
+(name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ)
+
 initialize implExt : MapDeclarationExtension Syntax ←
-  mkMapDeclarationExtension `Alloy.C.impl
+  -- Extension will clash with `precompileModules` version without this check
+  findOrRegisterPersistentExt `Alloy.C.impl mkMapDeclarationExtension
 
 def implExt.getLocalEntries (env : Environment) : Array (Name × Syntax) :=
   implExt.getState env |>.fold (init := #[]) fun a n s => a.push (n, s)
