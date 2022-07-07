@@ -160,7 +160,7 @@ syntax "static" cTypeQ* cExpr : cIndex
 syntax cTypeQ+ "static"? cExpr : cIndex
 syntax cTypeQ* "*" : cIndex
 
-syntax paramDecl := cDeclSpec+ optional(cDecl <|> cADecl)
+syntax paramDecl := cDeclSpec+ (cDecl <|> cADecl)?
 syntax params := paramDecl,+,? "..."?
 
 syntax:max ident : cDecl
@@ -187,7 +187,10 @@ syntax cExpr : cInitializer
 syntax "{" (optional(cDesignator+ "=") cInitializer),+,? "}" : cInitializer
 
 syntax initDeclarator := cDecl optional(" = " cInitializer)
-syntax declaration := cDeclSpec+ initDeclarator,* ";"
+
+syntax declaration :=
+  (atomic(lookahead(cDeclSpec (cDeclSpec <|> cDecl <|> ";"))) cDeclSpec)+
+  initDeclarator,* ";"
 
 --------------------------------------------------------------------------------
 -- Types
@@ -214,6 +217,8 @@ syntax "unsigned" : cTypeSpec
 
 syntax "_Bool" : cTypeSpec
 syntax "_Complex" : cTypeSpec
+
+syntax ident : cTypeSpec
 
 -- Atomic
 
@@ -249,7 +254,7 @@ syntax (name := alignSpec) "_Alignas" "(" (type <|> constExpr) ")" : cSpec
 declare_syntax_cat cStmt (behavior := symbol)
 
 -- jump statement
-syntax (name := gotoStmt) "goto" ident ";" : cStmt
+syntax (name := gotoStmt) "goto " ident ";" : cStmt
 syntax (name := continueStmt) "continue" ";" : cStmt
 syntax (name := breakStmt) "break" ";" : cStmt
 syntax (name := returnStmt) "return" cExpr,* ";" : cStmt
@@ -282,7 +287,9 @@ declare_syntax_cat cCmd
 
 -- Top-Level Definitions
 
-syntax function := cDeclSpec+ cDecl declaration* compStmt
+syntax function :=
+  (atomic(lookahead(cDeclSpec (cDeclSpec <|> cDecl))) cDeclSpec)+
+  cDecl declaration* compStmt
 
 syntax function : cCmd
 syntax declaration : cCmd

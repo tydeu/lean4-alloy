@@ -30,8 +30,6 @@ opaque S.nonemptyType : NonemptyType
 def S : Type := S.nonemptyType.type
 instance : Nonempty S := S.nonemptyType.property
 
-local syntax "S" : cTypeSpec
-
 --------------------------------------------------------------------------------
 -- C Utils for S
 --------------------------------------------------------------------------------
@@ -47,9 +45,9 @@ static void S_foreach(void* ptr, b_lean_obj_arg f) {
   lean_apply_1(f, ((S*)ptr)->m_s);
 }
 
-static lean_external_class* g_S_class = NULL;
+static lean_external_class * g_S_class = NULL;
 
-static inline lean_object* S_to_lean(S* s) {
+static inline lean_object * S_to_lean(S* s) {
   if (g_S_class == NULL) {
     g_S_class = lean_register_external_class(S_finalize, S_foreach);
   }
