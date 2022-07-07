@@ -306,17 +306,17 @@ def angleHeaderName := rawUntilCh '>'
 syntax angleHeader := "<" angleHeaderName ">"
 syntax header := str <|> angleHeader
 
-syntax "#include " header linebreak : ppCmd
-syntax "#define " ident (noWs "("  ident,*,?  "..."? ")")? line linebreak : ppCmd
-syntax "#undef " ident linebreak : ppCmd
-syntax "#line " line linebreak : ppCmd
-syntax "#error " line linebreak : ppCmd
-syntax "#pragma " line linebreak : ppCmd
-syntax "#" linebreak : ppCmd
+syntax "#include " header : ppCmd
+syntax "#define " ident (noWs "("  ident,*,?  "..."? ")")? line : ppCmd
+syntax "#undef " ident : ppCmd
+syntax "#line " line : ppCmd
+syntax "#error " line : ppCmd
+syntax "#pragma " line : ppCmd
+syntax "#" : ppCmd
 
-syntax "#if " constExpr linebreak : ppCmd
-syntax "#ifdef " ident linebreak : ppCmd
-syntax "#ifndef " ident linebreak : ppCmd
-syntax "#elif " constExpr linebreak : ppCmd
-syntax "#else" linebreak : ppCmd
-syntax "#endif" linebreak : ppCmd
+syntax "#if " constExpr : ppCmd
+syntax "#ifdef " ident : ppCmd
+syntax "#ifndef " ident : ppCmd
+syntax "#elif " constExpr : ppCmd
+syntax "#else" : ppCmd
+syntax "#endif" : ppCmd

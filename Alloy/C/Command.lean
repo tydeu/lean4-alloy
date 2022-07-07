@@ -5,8 +5,9 @@ Authors: Mac Malone
 -/
 import Alloy.C.Syntax
 import Alloy.C.Extension
+import Alloy.Util.Syntax
 import Lean.Compiler.NameMangling
-import Lean.Elab
+import Lean.Elab.ElabRules
 
 namespace Alloy.C
 
@@ -14,32 +15,25 @@ open Lean
 
 open Parser Command
 
-scoped syntax (name := preludeDecl)
-"alloy " &"c " &"prelude" ppLine cCmd+ ppLine "end" : command
+scoped elab (name := preludeCmd)
+"alloy " &"c " &"prelude" ppLine cmds:cCmd+ ppLine "end" : command =>
+  modifyEnv fun env => cmdExt.addEntries env cmds
 
-scoped syntax (name := externDecl) «docComment»?
-"alloy " &"c " &"extern " «str»? "def " declId declSig " := " cStmt : command
+scoped macro (name := includeCmd)
+"alloy " &"c " &"include " hdrs:header+ : command =>
+  `(alloy c prelude $[#include $hdrs]* end)
 
 open Elab Command
 
-@[commandElab preludeDecl]
-def elabPreludeDecl : CommandElab := fun stx =>
-  match stx with
-  | `(alloy c prelude $[$cmds]* end) =>
-    modifyEnv fun env => cmdExt.addEntries env cmds
-  | _ =>
-    throwError "ill-formed C prelude"
-
-@[commandElab externDecl]
-def elabExternDecl : CommandElab := fun stx =>
-  match stx with
-  | `($[$doc?]? alloy c extern $[$sym?]? def $id $sig := $body) => do
-    if body.raw.reprint.isNone then
-      throwErrorAt body "body is ill-formed (cannot be printed)"
-    let name := (← getCurrNamespace) ++ id.raw[0].getId
-    let symLit := sym?.getD <| Syntax.mkStrLit <| "_impl_" ++ name.mangle
-    let exp ← `($[$doc?]? @[extern $symLit:str] opaque $id $sig)
-    withMacroExpansion stx exp <| elabCommand exp
-    modifyEnv fun env => implExt.insert env name body
-  | _ =>
-    throwError "ill-formed external C definition"
+scoped elab (name := externDecl) doc?:«docComment»?
+"alloy " &"c " &"extern " sym?:«str»? attrs?:Term.«attributes»?
+"def " id:declId sig:declSig " := " body:cStmt : command => do
+  if body.raw.reprint.isNone then
+    throwErrorAt body "body is ill-formed (cannot be printed)"
+  let name := (← getCurrNamespace) ++ id.raw[0].getId
+  let symLit := sym?.getD <| Syntax.mkStrLit <| "_impl_" ++ name.mangle
+  let attr ← `(Term.attrInstance| extern $symLit:str)
+  let attrs := #[attr] ++ expandAttrs attrs?
+  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id $sig)
+  withMacroExpansion (← getRef) cmd <| elabCommand cmd
+  modifyEnv fun env => implExt.insert env name body
