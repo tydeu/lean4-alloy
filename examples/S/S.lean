@@ -7,34 +7,25 @@ An adaption of Lean 4's
 example for Alloy.
 -/
 
+alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>
+
+/-!-/ -- prevents the include above from eating the comment below
+
 --------------------------------------------------------------------------------
--- S Type
+/-! ## S Type & Related C Utils                                               -/
 --------------------------------------------------------------------------------
+
+opaque S.nonemptyType : NonemptyType
+def S : Type := S.nonemptyType.type
+instance : Nonempty S := S.nonemptyType.property
 
 alloy c prelude
-
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <lean/lean.h>
 
 typedef struct {
   uint32_t      m_x;
   uint32_t      m_y;
   lean_object * m_s;
 } S;
-
-end
-
-opaque S.nonemptyType : NonemptyType
-def S : Type := S.nonemptyType.type
-instance : Nonempty S := S.nonemptyType.property
-
---------------------------------------------------------------------------------
--- C Utils for S
---------------------------------------------------------------------------------
-
-alloy c prelude
 
 static void S_finalize(void* ptr) {
   lean_dec(((S*)ptr)->m_s);
@@ -63,7 +54,7 @@ static S g_s = {0, 0, NULL};
 end
 
 --------------------------------------------------------------------------------
--- Lean Bridge
+/-! ## Lean Bridge                                                            -/
 --------------------------------------------------------------------------------
 
 alloy c extern "lean_mk_S"
