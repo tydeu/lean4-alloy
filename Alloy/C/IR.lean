@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Alloy.Util.IR
-import Alloy.C.SyntaxUtil
+import Alloy.C.Syntax
 
 open Lean
 open IR (IRType)
