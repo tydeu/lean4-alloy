@@ -16,7 +16,7 @@ syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
 
 scoped elab (name := sectionCmd)
 "alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command =>
-  modifyEnv fun env => cmdExt.addEntries env cmds
+  modifyEnv (cmdExt.modifyState · (·.append cmds))
 
 scoped macro (name := includeCmd)
 "alloy " &"c " &"include " hdrs:header+ : command =>

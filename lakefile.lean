@@ -37,7 +37,7 @@ module_facet alloy.c : FilePath := fun mod => do
       buildFileUnlessUpToDate cFile depTrace do
         proc {
           cmd := exeFile.toString
-          args := #[mod.leanFile.toString, cFile.toString]
+          args := #[mod.name.toString, cFile.toString]
           env := #[("LEAN_PATH", (← getLeanPath).toString)]
         }
   return ActiveTarget.mk cFile  task

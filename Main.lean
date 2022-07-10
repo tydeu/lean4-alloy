@@ -4,26 +4,21 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Alloy
-import Lean.Elab.Frontend
 
 open Lean System Alloy
 
-def compileCShim (leanFile : FilePath) (outFile? : Option FilePath) : IO PUnit := do
-  let input ← IO.FS.readFile leanFile
-  let (env, ok) ← Elab.runFrontend input Options.empty leanFile.toString `main
-  if ok then
-    if let some outFile := outFile? then
-      EmitFileM.run outFile <| C.emitLocalShim env
-    else
-      EmitStreamM.run (← IO.getStdout) <| C.emitLocalShim env
+def compileCShim (module : Name) (outFile? : Option FilePath) : IO PUnit := do
+  let env ← Lean.importModules [{module}] Options.empty
+  if let some outFile := outFile? then
+    EmitFileM.run outFile <| C.emitModuleShim env module
   else
-    throw <| IO.userError s!"file {leanFile} has errors"
+    EmitStreamM.run (← IO.getStdout) <| C.emitModuleShim env module
 
 def main (args : List String) : IO UInt32 := do
-  if let leanFile :: args := args then
+  if let module :: args := args then
     try
       Lean.initSearchPath (← Lean.findSysroot)
-      compileCShim leanFile args.head?
+      compileCShim module.toName args.head?
       return 0
     catch e =>
       IO.eprintln s!"error: {toString e}"

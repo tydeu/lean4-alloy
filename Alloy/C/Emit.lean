@@ -15,6 +15,12 @@ namespace Alloy.C
 
 variable [Monad m] [MonadEmit m]
 
-def emitLocalShim (env : Environment) : m PUnit := do
-  for cmd in C.cmdExt.getEntries env do
+def emitShim (shim : Shim) : m PUnit :=
+  for cmd in shim do
     emitLn cmd.raw.reprint.get!.trim
+
+@[inline] def emitLocalShim (env : Environment) : m PUnit := do
+  emitShim <| getLocalShim env
+
+@[inline] def emitModuleShim (env : Environment) (mod : Name) : m PUnit :=
+  emitShim <| getModuleShim env mod
