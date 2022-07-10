@@ -19,7 +19,7 @@ opaque S.nonemptyType : NonemptyType
 def S : Type := S.nonemptyType.type
 instance : Nonempty S := S.nonemptyType.property
 
-alloy c prelude
+alloy c section
 
 typedef struct {
   uint32_t      m_x;

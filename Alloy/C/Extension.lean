@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Lean.Environment
+import Alloy.C.SyntaxUtil
 
 open Lean
 
@@ -20,21 +21,21 @@ unsafe def unsafeFindOrRegisterPersistentExt {α β σ : Type} [Inhabited σ]
 opaque findOrRegisterPersistentExt {α β σ : Type} [Inhabited σ]
 (name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ)
 
-initialize implExt : MapDeclarationExtension Syntax ←
+initialize implExt : MapDeclarationExtension Function ←
   -- Extension will clash with `precompileModules` version without this check
   findOrRegisterPersistentExt `Alloy.C.impl mkMapDeclarationExtension
 
-def implExt.getLocalEntries (env : Environment) : Array (Name × Syntax) :=
+def implExt.getLocalEntries (env : Environment) : Array (Name × Function) :=
   implExt.getState env |>.fold (init := #[]) fun a n s => a.push (n, s)
 
-initialize cmdExt : EnvExtension (Array Syntax) ←
+initialize cmdExt : EnvExtension (Array Cmd) ←
   registerEnvExtension (pure #[])
 
-def cmdExt.addEntry (env : Environment) (cmd : Syntax) : Environment :=
+def cmdExt.addEntry (env : Environment) (cmd : Cmd) : Environment :=
   cmdExt.modifyState env fun arr => arr.push cmd
 
-def cmdExt.addEntries (env : Environment) (cmds : Array Syntax) : Environment :=
+def cmdExt.addEntries (env : Environment) (cmds : Array Cmd) : Environment :=
   cmdExt.modifyState env fun arr => arr.append cmds
 
-def cmdExt.getEntries (env : Environment) : Array Syntax :=
+def cmdExt.getEntries (env : Environment) : Array Cmd :=
   cmdExt.getState env

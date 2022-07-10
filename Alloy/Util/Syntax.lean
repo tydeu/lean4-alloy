@@ -8,6 +8,9 @@ import Lean.Parser.Term
 namespace Alloy
 open Lean Parser Term
 
+instance : Coe (TSyntax k) (TSyntaxArray k) where
+  coe s := #[s]
+
 def expandAttrs (attrs? : Option (TSyntax ``attributes)) : Array (TSyntax ``attrInstance) :=
   if let some attrs := attrs? then
     match attrs with
