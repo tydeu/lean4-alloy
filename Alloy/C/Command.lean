@@ -15,8 +15,12 @@ open Lean Parser Elab Command
 syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
 
 scoped elab (name := sectionCmd)
-"alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command =>
-  modifyEnv (cmdExt.modifyState · (·.append cmds))
+"alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
+  let env ← getEnv
+  let shim := shimExt.getState env
+  match shim.appendCmds? cmds with
+  | .ok shim => setEnv <| shimExt.setState env shim
+  | .error cmd => throwErrorAt cmd "command is ill-formed (cannot be reprinted)"
 
 scoped macro (name := includeCmd)
 "alloy " &"c " &"include " hdrs:header+ : command =>
@@ -25,8 +29,6 @@ scoped macro (name := includeCmd)
 scoped elab (name := externDecl) doc?:«docComment»?
 "alloy " &"c " &"extern " sym?:«str»? attrs?:Term.«attributes»?
 "def " id:declId sig:declSig " := " body:cStmt : command => do
-  if body.raw.reprint.isNone then
-    throwErrorAt body "body is ill-formed (cannot be printed)"
 
   -- Lean Definition
   let name := (← getCurrNamespace) ++ id.raw[0].getId

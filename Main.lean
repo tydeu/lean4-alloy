@@ -7,18 +7,19 @@ import Alloy
 
 open Lean System Alloy
 
-def compileCShim (module : Name) (outFile? : Option FilePath) : IO PUnit := do
+def emitCShim (module : Name) (outFile? : Option FilePath) : IO PUnit := do
   let env ← Lean.importModules [{module}] Options.empty
+  let shim := C.getModuleShim env module
   if let some outFile := outFile? then
-    EmitFileM.run outFile <| C.emitModuleShim env module
+    IO.FS.writeFile outFile shim.toString
   else
-    EmitStreamM.run (← IO.getStdout) <| C.emitModuleShim env module
+    IO.print shim
 
 def main (args : List String) : IO UInt32 := do
   if let module :: args := args then
     try
       Lean.initSearchPath (← Lean.findSysroot)
-      compileCShim module.toName args.head?
+      emitCShim module.toName args.head?
       return 0
     catch e =>
       IO.eprintln s!"error: {toString e}"
