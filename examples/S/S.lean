@@ -2,9 +2,11 @@ import Alloy.C
 open scoped Alloy.C
 
 /-!
-An adaption of Lean 4's
-['foreign'](https://github.com/leanprover/lean4/tree/b278a20ac22adcbfde11db386f2dc874d4a215ad/tests/compiler/foreign)
-example for Alloy.
+# `S.lean`
+
+An adaption of Lean 4's ['foreign'][1] example for Alloy.
+
+[1]: https://github.com/leanprover/lean4/tree/b278a20ac22adcbfde11db386f2dc874d4a215ad/tests/compiler/foreign
 -/
 
 alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>

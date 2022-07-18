@@ -10,10 +10,11 @@ import Alloy.Util.Parser
 
 This module contains a a Lean DSL that encodes the standard C syntax.
 
-It is modeled off of Microsoft's
-[C Language Syntax Summary](https://docs.microsoft.com/en-us/cpp/c-language/c-language-syntax-summary)
-and the C11 standard's
-[specification](http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf#page=476).
+It uses Microsoft's [C Language Syntax Summary][1] and the C11 standard's
+[specification][2] as references.
+
+[1]: https://docs.microsoft.com/en-us/cpp/c-language/c-language-syntax-summary
+[2]: http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf#page=476
 -/
 
 namespace Alloy.C
