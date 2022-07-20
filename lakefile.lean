@@ -25,7 +25,7 @@ lean_exe alloy {
 --------------------------------------------------------------------------------
 
 module_facet alloy.c : FilePath := fun mod => do
-  let some alloy ← findLeanExe? &`alloy
+  let some alloy ← findLeanExe? `alloy
     | error "no alloy executable configuration found in workspace"
   let exeTarget ← alloy.exe.recBuild
   let modTarget ← mod.leanBin.recBuild
@@ -44,6 +44,6 @@ module_facet alloy.c : FilePath := fun mod => do
 
 module_facet alloy.c.o : FilePath := fun mod => do
   let oFile := mod.irPath "alloy.c.o"
-  let cTarget ← recBuild <| mod.facet &`alloy.c
+  let cTarget ← recBuild <| mod.facet `alloy.c
   let args := #["-I", (← getLeanIncludeDir).toString] ++ mod.leancArgs
   oFileTarget oFile (Target.active cTarget) args "cc" |>.activate

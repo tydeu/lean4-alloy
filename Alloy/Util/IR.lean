@@ -16,7 +16,8 @@ def irParamsToBindings
   -- Lean omits irrelevant parameters for extern constants
   let irParams := irParams.filter fun p => !p.ty.isIrrelevant
   for h : i in [0:irParams.size] do
-    let p := irParams[⟨i, h.upper⟩]
+    have : i < irParams.size := h.upper
+    let p := irParams[i]
     if fnType.isBinding then
       params := params.push (p.ty, fnType.bindingName!)
       fnType := fnType.bindingBody!
