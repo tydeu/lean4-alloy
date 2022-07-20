@@ -10,16 +10,16 @@ open Lean Lsp
 
 namespace Alloy
 
-/-- Like `Lean.Lsp.Params` but more specification compliant. -/
+/-- Like `Lean.Lsp.InitializeParams` but more specification compliant. -/
 structure InitializeParams (InitializationOptions ExperimentalCapabilities := Json) where
   processId? : Option Int := none
   clientInfo? : Option ClientInfo := none
-  rootUri? : Option String := none
+  rootUri : Option String := none
   initializationOptions? : Option InitializationOptions := none
   capabilities : ClientCapabilities ExperimentalCapabilities := {}
   trace? : Option Trace := none -- default: Trace.off
   workspaceFolders? : Option (Array WorkspaceFolder) := none
-  deriving Inhabited
+  deriving Inhabited, ToJson
 
 instance [ToJson Opts] [ToJson Exp] : Coe (InitializeParams Opts Exp) InitializeParams where
   coe p := {p with
@@ -27,7 +27,10 @@ instance [ToJson Opts] [ToJson Exp] : Coe (InitializeParams Opts Exp) Initialize
     capabilities := p.capabilities
   }
 
-/-- Instance from the Lean core adapted to the updated `InitializeParams` -/
+/--
+Instance from the Lean core adapted to the updated `InitializeParams`
+(also supports `rootPath`)
+-/
 instance [FromJson Opts] [FromJson Exp] : FromJson (InitializeParams Opts Exp) where
   fromJson? j := do
     let processId? := j.getObjValAs? Int "processId"
@@ -36,7 +39,7 @@ instance [FromJson Opts] [FromJson Exp] : FromJson (InitializeParams Opts Exp) w
     let rootUri? := j.getObjValAs? String "rootUri"
     let initializationOptions? := j.getObjValAs? Opts "initializationOptions"
     let capabilities ← j.getObjValAs? (ClientCapabilities Exp) "capabilities"
-    let trace := (j.getObjValAs? Trace "trace").toOption.getD Trace.off
+    let trace := (j.getObjValAs? Trace "trace").toOption
     let workspaceFolders? := j.getObjValAs? (Array WorkspaceFolder) "workspaceFolders"
     return ⟨
       processId?.toOption,
@@ -48,22 +51,11 @@ instance [FromJson Opts] [FromJson Exp] : FromJson (InitializeParams Opts Exp) w
       workspaceFolders?.toOption
     ⟩
 
-/-- We manually define this instance to make `rootUri?` null if missing. -/
-instance [ToJson Opts] [ToJson Exp] : ToJson (InitializeParams Opts Exp) where
-  toJson p := Id.run do
-    let mut kvPairs := Std.RBNode.leaf
-    if let some processId := p.processId? then
-      kvPairs := kvPairs.insert compare "processId" <| toJson processId
-    if let some clientInfo := p.clientInfo? then
-      kvPairs := kvPairs.insert compare "clientInfo" <| toJson  clientInfo
-    -- Root URI can be `null` but not `undefined` according to specification.
-    kvPairs := kvPairs.insert compare "rootUri" <|
-      match p.rootUri? with | some uri => toJson uri | none => Json.null
-    if let some options := p.initializationOptions? then
-      kvPairs := kvPairs.insert compare "initializationOptions" <| toJson  options
-    kvPairs := kvPairs.insert compare "capabilities" <| toJson p.capabilities
-    if let some trace := p.trace? then
-      kvPairs := kvPairs.insert compare "trace" <| toJson trace
-    if let some workspaceFolders := p.workspaceFolders? then
-      kvPairs := kvPairs.insert compare "workspaceFolders" <| toJson workspaceFolders
-    return Json.obj kvPairs
+/-- Like `Lean.Lsp.InitializeResult` but more specification compliant. -/
+structure InitializeResult (ExperimentalCapabilities := Json) where
+  capabilities : ServerCapabilities ExperimentalCapabilities := {}
+  serverInfo? : Option ServerInfo := none
+  deriving Inhabited, ToJson, FromJson
+
+instance [ToJson Exp] : Coe (InitializeResult  Exp) InitializeResult where
+  coe r := {r with capabilities := r.capabilities}

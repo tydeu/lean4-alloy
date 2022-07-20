@@ -59,6 +59,9 @@ instance : Coe ExternDecl Cmd where
 instance : Coe PPCmd Cmd where
    coe s := ⟨s.raw⟩
 
+instance : Coe CompStmt Stmt where
+   coe s := ⟨s.raw⟩
+
 /-!
 ## Other Utilities
 -/
@@ -66,3 +69,9 @@ instance : Coe PPCmd Cmd where
 def unpackStmtBody : Stmt → Syntax × Array Declaration × Array Stmt × Syntax
 | `(compStmt|{%$head $decls* $[$stmts:cStmt]* }%$tail) => (head, decls, stmts, tail)
 | stmt => (Syntax.missing, #[], #[stmt], Syntax.missing)
+
+def packBody (stmt : Stmt) : CompStmt :=
+  if stmt.raw.isOfKind ``compStmt then
+    ⟨stmt⟩
+  else
+    Unhygienic.run do withRef stmt `(compStmt| {$stmt:cStmt})

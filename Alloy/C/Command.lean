@@ -26,9 +26,12 @@ scoped macro (name := includeCmd)
 "alloy " &"c " &"include " hdrs:header+ : command =>
   `(alloy c section $[#include $hdrs]* end)
 
+def bracketedBinders :=
+  many Term.bracketedBinder
+
 scoped elab (name := externDecl) doc?:«docComment»?
-"alloy " &"c " &"extern " sym?:«str»? attrs?:Term.«attributes»?
-"def " id:declId sig:declSig " := " body:cStmt : command => do
+"alloy " &"c " ex:&"extern " sym?:«str»? attrs?:Term.«attributes»?
+"def " id:declId bs:bracketedBinders " : " type:term " := " body:cStmt : command => do
 
   -- Lean Definition
   let name := (← getCurrNamespace) ++ id.raw[0].getId
@@ -40,7 +43,8 @@ scoped elab (name := externDecl) doc?:«docComment»?
       (Syntax.mkStrLit extSym, extSym)
   let attr ← `(Term.attrInstance| extern $symLit:str)
   let attrs := #[attr] ++ expandAttrs attrs?
-  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id $sig)
+  let bs' := bs.raw.getArgs.map (⟨.⟩)
+  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id:declId $[$bs']* : $type)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
 
   -- C Definition
@@ -48,14 +52,13 @@ scoped elab (name := externDecl) doc?:«docComment»?
   if let some info := env.find? name then
     if let some decl := IR.findEnvDecl env name then
       let id := mkIdentFrom symLit (Name.mkSimple extSym)
-      let (ty, ptr?) ← liftMacroM <| withRef sig <| expandIrTypeToC decl.resultType
-      let params ← liftMacroM <| withRef sig <| expandIrParamsToC info.type decl.params
+      let (ty, ptr?) ← liftMacroM <| withRef type <| expandIrTypeToC decl.resultType
+      let params ← liftMacroM <| withRef bs <| expandIrParamsToC info.type decl.params
       let (head, decls, stmts, tail) := unpackStmtBody body
+      let body := packBody body
       let fn ← `(function|
-        LEAN_EXPORT $ty:cTypeSpec $[$ptr?:pointer]? $id:ident($params:params) {%$head
-          $decls*
-          $[$stmts:cStmt]*
-        }%$tail
+        LEAN_EXPORT%$ex $ty:cTypeSpec $[$ptr?:pointer]?
+        $id:ident(%$bs$params:params)%$bs $body:compStmt
       )
       let cmd ← `(alloy c section $fn:function end)
       withMacroExpansion (← getRef) cmd <| elabCommand cmd

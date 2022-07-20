@@ -13,10 +13,12 @@ structure EmptyObject deriving ToJson, FromJson
 instance : EmptyCollection EmptyObject := ⟨.mk⟩
 
 def Union := Sum
-namespace Union
-def inl (a : α) : Union α β := Sum.inl a
-def inr (b : β) : Union α β := Sum.inr b
-end Union
+
+def Union.inl (a : α) : Union α β := Sum.inl a
+def Union.inr (b : β) : Union α β := Sum.inr b
+
+instance : Coe α (Union α β) := ⟨.inl⟩
+instance : Coe β (Union α β) := ⟨.inr⟩
 
 instance [ToJson α] [ToJson β] : ToJson (Union α β) where
   toJson | .inl a => toJson a | .inr b => toJson b
@@ -27,7 +29,8 @@ instance [FromJson α] [FromJson β] : FromJson (Union α β) where
     | .ok a => .ok <| .inl a
     | .error _ => .inr <$> fromJson? v
 
---
+abbrev BUnion (α) := Union Bool α
+abbrev BOption (α) := Option (BUnion α)
 
 structure WorkDoneProgressOptions where
   workDoneProgress? : Option Bool := none
@@ -401,13 +404,13 @@ structure CallHierarchyClientCapabilities where
   dynamicRegistration? : Option Bool := none
   deriving ToJson, FromJson
 
-structure SemanticTokensRequestsFullCapabilities where
+structure SemanticTokensFullCapabilities where
   delta? : Option Bool := none
   deriving ToJson, FromJson
 
 structure SemanticTokensRequestsCapabilities where
-  range? : Option (Union Bool EmptyObject) := none
-  full? : Option (Union Bool SemanticTokensRequestsFullCapabilities) := none
+  range? : BOption EmptyObject := none
+  full? : BOption SemanticTokensFullCapabilities := none
   deriving ToJson, FromJson
 
 inductive TokenFormat
@@ -544,4 +547,111 @@ structure ClientCapabilities (Experimental := Json) where
   deriving Inhabited, ToJson, FromJson
 
 instance [ToJson Exp] : Coe (ClientCapabilities Exp) ClientCapabilities where
+  coe caps := {caps with experimental? := caps.experimental?.map toJson}
+
+---
+
+structure TextDocumentSyncOptions where
+  openClose? : Option Bool := none
+  change? : Option TextDocumentSyncKind := none
+  deriving ToJson, FromJson
+
+/--
+Permits parsing a `TextDocumentSyncOptions`
+from a plain `TextDocumentSyncKind` (i.e., a number).
+-/
+instance : FromJson TextDocumentSyncOptions where
+  fromJson? v := try return {change? := some <| ← fromJson? v} catch _ => fromJson? v
+
+structure StaticRegistrationOptions where
+  id? : Option String := none
+
+structure TextDocumentRegistrationOptions where
+  documentSelector : Option DocumentSelector := none
+
+abbrev NotebookDocumentSyncRegistrationOptions := Json
+abbrev CompletionOptions := Json
+abbrev HoverOptions := Json
+abbrev SignatureHelpOptions := Json
+abbrev DeclarationRegistrationOptions := Json
+abbrev DefinitionOptions := Json
+abbrev TypeDefinitionRegistrationOptions := Json
+abbrev ImplementationRegistrationOptions := Json
+abbrev ReferenceOptions := Json
+abbrev DocumentHighlightOptions := Json
+abbrev DocumentSymbolOptions := Json
+abbrev CodeActionOptions := Json
+abbrev CodeLensOptions := Json
+abbrev DocumentLinkOptions := Json
+abbrev DocumentColorRegistrationOptions := Json
+abbrev DocumentFormattingOptions := Json
+abbrev DocumentRangeFormattingOptions := Json
+abbrev DocumentOnTypeFormattingOptions := Json
+abbrev RenameOptions := Json
+abbrev FoldingRangeRegistrationOptions := Json
+abbrev ExecuteCommandOptions := Json
+abbrev SelectionRangeRegistrationOptions := Json
+abbrev LinkedEditingRangeRegistrationOption := Json
+abbrev CallHierarchyRegistrationOptions := Json
+
+example : ToJson (BOption EmptyObject) := inferInstance
+example : ToJson (BOption SemanticTokensFullCapabilities) := inferInstance
+
+structure SemanticTokensOptions extends WorkDoneProgressOptions where
+  legend : SemanticTokensLegend
+  range? : BOption EmptyObject := none
+  full? : BOption SemanticTokensFullCapabilities := none
+  deriving ToJson, FromJson
+
+structure SemanticTokensRegistrationOptions extends
+  SemanticTokensOptions, TextDocumentRegistrationOptions, StaticRegistrationOptions
+  deriving ToJson, FromJson
+
+abbrev MonikerRegistrationOptions := Json
+abbrev TypeHierarchyRegistrationOptions := Json
+abbrev InlineValueRegistrationOptions := Json
+abbrev InlayHintRegistrationOptions := Json
+abbrev DiagnosticRegistrationOptions := Json
+abbrev WorkspaceSymbolOptions := Json
+abbrev WorkspaceServerCapabilities := Json
+
+structure ServerCapabilities (Experimental := Json) where
+  positionEncoding? : Option PositionEncodingKind := none
+  textDocumentSync? : Option TextDocumentSyncOptions := none
+  notebookDocumentSync? : Option NotebookDocumentSyncRegistrationOptions := none
+  completionProvider? : Option CompletionOptions := none
+  hoverProvider? : BOption HoverOptions := none
+  signatureHelpProvider? : Option SignatureHelpOptions := none
+  declarationProvider? : BOption DeclarationRegistrationOptions := none
+  definitionProvider? : BOption DefinitionOptions := none
+  typeDefinitionProvider? : BOption TypeDefinitionRegistrationOptions := none
+  implementationProvider? : BOption ImplementationRegistrationOptions := none
+  referencesProvider? : BOption ReferenceOptions := none
+  documentHighlightProvider? : BOption DocumentHighlightOptions := none
+  documentSymbolProvider? : BOption DocumentSymbolOptions := none
+  codeActionProvider? : BOption CodeActionOptions := none
+  codeLensProvider? : Option CodeLensOptions := none
+  documentLinkProver? : Option DocumentLinkOptions := none
+  colorProvider? : BOption DocumentColorRegistrationOptions := none
+  documentFormattingProvider? : BOption DocumentFormattingOptions := none
+  documentRangeFormattingProvider? : BOption DocumentRangeFormattingOptions := none
+  documentOnTypeFormattingProvider? : Option DocumentOnTypeFormattingOptions := none
+  renameProvider? : BOption RenameOptions := none
+  foldingRangeProvider? : BOption FoldingRangeRegistrationOptions := none
+  executeCommandProvider? : Option ExecuteCommandOptions := none
+  selectionRangeProvider? : BOption SelectionRangeRegistrationOptions := none
+  linkedEditingRangeProvider? : BOption LinkedEditingRangeRegistrationOption := none
+  callHierarchyProvider? : BOption CallHierarchyRegistrationOptions := none
+  semanticTokensProvider? : Option SemanticTokensRegistrationOptions := none
+  monikerProvider? : BOption MonikerRegistrationOptions := none
+  typeHierarchyProvider? : BOption TypeHierarchyRegistrationOptions := none
+  inlineValueProvider? : BOption InlineValueRegistrationOptions := none
+  inlayHintProvider? : BOption InlayHintRegistrationOptions := none
+  diagnosticProvider? : Option DiagnosticRegistrationOptions := none
+  workspaceSymbolProvider? : BOption WorkspaceSymbolOptions := none
+  workspace? : Option WorkspaceServerCapabilities := none
+  experimental? : Option Experimental := none
+  deriving Inhabited, ToJson, FromJson
+
+instance [ToJson Exp] : Coe (ServerCapabilities Exp) ServerCapabilities where
   coe caps := {caps with experimental? := caps.experimental?.map toJson}

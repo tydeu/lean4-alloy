@@ -419,7 +419,8 @@ syntax (name := returnStmt) "return" cExpr,* ";" : cStmt
 -/
 
 /-- Encodes an `compound-statement` of the C grammar. -/
-syntax (name := compStmt) "{" declaration* cStmt* "}" : cStmt
+syntax compStmt := "{" declaration* cStmt* "}"
+syntax compStmt : cStmt
 
 /-!
 ### Expression Statement

@@ -11,8 +11,6 @@ An adaption of Lean 4's ['foreign'][1] example for Alloy.
 
 alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>
 
-/-!-/ -- prevents the include above from eating the comment below
-
 --------------------------------------------------------------------------------
 /-! ## S Type & Related C Utils                                               -/
 --------------------------------------------------------------------------------
