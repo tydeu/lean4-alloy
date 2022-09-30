@@ -5,7 +5,7 @@ package my_add
 
 require alloy from ".."/".."
 
-module_data alloy.c.o : ActiveFileTarget
+module_data alloy.c.o : BuildJob FilePath
 lean_lib MyAdd {
   precompileModules := true
   nativeFacets := #[Module.oFacet, `alloy.c.o]

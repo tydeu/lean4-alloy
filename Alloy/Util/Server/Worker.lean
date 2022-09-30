@@ -7,7 +7,8 @@ import Lean.Server.AsyncList
 import Lean.Data.Lsp.Communication
 import Alloy.Util.Server.Initialize
 
-open Lean Lsp JsonRpc
+open Lean hiding Message
+open Lean.Lsp Lean.JsonRpc
 
 namespace Alloy
 
@@ -15,7 +16,7 @@ namespace Alloy
 abbrev ipcStdioConfig : IO.Process.StdioConfig :=
   {stdin := .piped, stdout := .piped, stderr := .inherit}
 
-abbrev RequestMap (α) := Std.RBMap RequestID α compare
+abbrev RequestMap (α) := RBMap RequestID α compare
 
 /- State for an `LsWorker`. -/
 structure LsState where

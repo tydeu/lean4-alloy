@@ -24,26 +24,27 @@ lean_exe alloy {
 -- # Module Facets
 --------------------------------------------------------------------------------
 
-module_facet alloy.c : FilePath := fun mod => do
+module_facet alloy.c mod : FilePath := do
   let some alloy ← findLeanExe? `alloy
     | error "no alloy executable configuration found in workspace"
-  let exeTarget ← alloy.exe.recBuild
-  let modTarget ← mod.leanBin.recBuild
+  let exeJob ← alloy.exe.fetch
+  let modJob ← mod.leanBin.fetch
   let cFile := mod.irPath "alloy.c"
-  let task ← show SchedulerM _ from do
-    exeTarget.bindAsync fun exeFile exeTrace => do
-    modTarget.bindSync fun _ modTrace => do
-      let depTrace := exeTrace.mix modTrace
-      buildFileUnlessUpToDate cFile depTrace do
-        proc {
-          cmd := exeFile.toString
-          args := #[mod.name.toString, cFile.toString]
-          env := #[("LEAN_PATH", (← getLeanPath).toString)]
-        }
-  return ActiveTarget.mk cFile  task
+  exeJob.bindAsync fun exeFile exeTrace => do
+  modJob.bindSync fun _ modTrace => do
+    let depTrace := exeTrace.mix modTrace
+    let trace ← buildFileUnlessUpToDate cFile depTrace do
+      logInfo s!"Generating {mod.name} alloy"
+      proc {
+        cmd := exeFile.toString
+        args := #[mod.name.toString, cFile.toString]
+        env := #[("LEAN_PATH", (← getLeanPath).toString)]
+      }
+    return (cFile, trace)
 
-module_facet alloy.c.o : FilePath := fun mod => do
+module_facet alloy.c.o mod : FilePath := do
   let oFile := mod.irPath "alloy.c.o"
-  let cTarget ← recBuild <| mod.facet `alloy.c
+  let cJob ← fetch <| mod.facet `alloy.c
   let args := #["-I", (← getLeanIncludeDir).toString] ++ mod.leancArgs
-  oFileTarget oFile (Target.active cTarget) args "cc" |>.activate
+  buildFileAfterDep oFile cJob fun cFile => do
+    compileO s!"{mod.name} alloy" oFile cFile args "cc"

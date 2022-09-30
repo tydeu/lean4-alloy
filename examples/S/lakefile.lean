@@ -7,7 +7,7 @@ package s {
 
 require alloy from ".."/".."
 
-module_data alloy.c.o : ActiveFileTarget
+module_data alloy.c.o : BuildJob FilePath
 lean_lib S {
   precompileModules := true
   nativeFacets := #[Module.oFacet, `alloy.c.o]
