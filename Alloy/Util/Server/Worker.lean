@@ -9,6 +9,7 @@ import Alloy.Util.Server.Initialize
 
 open Lean hiding Message
 open Lean.Lsp Lean.JsonRpc
+open IO (Promise)
 
 namespace Alloy
 
@@ -16,54 +17,22 @@ namespace Alloy
 abbrev ipcStdioConfig : IO.Process.StdioConfig :=
   {stdin := .piped, stdout := .piped, stderr := .inherit}
 
-abbrev RequestMap (α) := RBMap RequestID α compare
+/-- An LSP response error. -/
+structure LsError where
+  code : ErrorCode
+  message : String
+  data? : Option Json
 
-/- State for an `LsWorker`. -/
+/-- State for an `LsWorker`. -/
 structure LsState where
   nextID : Nat := 0
-  messages : IO.AsyncList IO.Error Message := .nil
-  pendingResponses : RequestMap Json := {}
-
-namespace LsState
-
-def saveResponse (id : RequestID) (result : Json) (self : LsState) : LsState :=
-  {self with pendingResponses := self.pendingResponses.insert id result}
-
--- TODO: Handle non-response messages
-partial def waitResponse (expectedID : RequestID)
-: ExceptT IO.Error (StateM LsState) (Option Json) := do
-  match (← get).messages with
-  | .nil => return .none
-  | .cons m ms =>
-    modify ({· with messages := ms})
-    if let .response id result := m then
-      if id == expectedID then
-        return result
-      else
-        modify (·.saveResponse id result)
-    waitResponse expectedID
-  | .delayed ms =>
-    modify ({· with messages := ← ms.get})
-    waitResponse expectedID
-
-def takePendingResponse? (id : RequestID) : StateM LsState <| Option Json := fun self => do
-  if let some result := self.pendingResponses.find? id then
-    (.some result, {self with pendingResponses := self.pendingResponses.erase id})
-  else
-    (.none, self)
-
-def getOrWaitResponse (expectedID : RequestID)
-: ExceptT IO.Error (StateM LsState) (Option Json) := do
-  if let some result ← takePendingResponse? expectedID then
-    return result
-  waitResponse expectedID
-
-end LsState
+  responseMap : RBMap RequestID (Promise (Except LsError Json)) compare := {}
+  error? : Option IO.Error := none
 
 /-- A running language server process -/
 structure LsWorker where
   child : IO.Process.Child ipcStdioConfig
-  state : IO.Ref LsState
+  state : IO.Mutex LsState
   capabilities : ServerCapabilities := {}
   info? : Option ServerInfo := none
 
@@ -89,59 +58,62 @@ def withTextDocument [Monad m] [MonadLiftT IO m] [MonadFinally m]
     let dcp : DidCloseTextDocumentParams := ⟨⟨uri⟩⟩
     self.notify "textDocument/didClose" dcp
 
-def nextID (self : LsWorker) : BaseIO RequestID :=
-  self.state.modifyGet fun s => (s.nextID, {s with nextID := s.nextID + 1})
-
-def request [ToJson α] (self : LsWorker) (method : String) (param : α) : IO RequestID := do
-  let id ← self.nextID
-  self.stdin.writeLspRequest {id, method, param}
-  return id
-
-def takePendingResponse? (self : LsWorker) (id : RequestID) : BaseIO (Option Json) := do
-  self.state.modifyGet fun s =>
-    let rs := s.pendingResponses
-    match rs.find? id with
-    | some result => (some result, {s with pendingResponses := rs.erase id})
-    | none => (none, s)
-
-def readUntilResponse (self : LsWorker) (expectedID : RequestID) : IO Json := do
-  match (← self.state.modifyGet <| LsState.getOrWaitResponse expectedID) with
-  | .ok (some result) => return result
-  | .ok none => throw <| IO.userError <|
-    s!"Language server quit without responding to request `{expectedID}`"
-  | .error e => throw e
-
-def readUntilResponseAs (self : LsWorker) (expectedID : RequestID) (α) [FromJson α] : IO α := do
-  let result ← self.readUntilResponse expectedID
-  match fromJson? result with
-  | .ok v => pure v
-  | .error inner => throw <| IO.userError <|
-    s!"Unexpected result for request `{expectedID}`:\n'{result.compress}'\n{inner}"
-
 def call [ToJson α] [FromJson β] (self : LsWorker) (method : String) (param : α) : IO β := do
-  let id ← self.request method param
-  self.readUntilResponseAs id β
+  let (id, p) ← self.state.atomically fun ref => do
+    let s ← ref.get
+    if let some e := s.error? then
+      throw <| IO.userError <| s!"Language server error: {e}"
+    let id := s.nextID
+    self.stdin.writeLspRequest {id, method, param}
+    let p ← Promise.new
+    ref.set {s with nextID := id + 1, responseMap := s.responseMap.insert id p}
+    return (id, p)
+  let r ← IO.wait p.result
+  self.state.atomically (·.modify fun s => {s with responseMap := s.responseMap.erase id})
+  match r with
+  | .ok r =>
+    match fromJson? r with
+    | .ok v => pure v
+    | .error inner => throw <| IO.userError <|
+      s!"Unexpected result for request `{id}`:\n'{r.compress}'\n{inner}"
+  | .error e => throw <| IO.userError e.message
 
-/-- Auxiliary function for `readMessagesAsync` -/
-partial def readMessagesAsyncAux (self : LsWorker)
-: BaseIO (Task <| Except IO.Error <| IO.AsyncList IO.Error Message) := IO.asTask do
-  let msg ← self.stdout.readLspMessage
-  let nextTask ← self.readMessagesAsyncAux
-  return .cons msg <| .delayed nextTask
+/--
+Read all LSP messages from `stream`, completing requests from `state`.
+TODO: Handle non-response messages.
+-/
+partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex LsState) : BaseIO Unit := do
+  match (← stream.readLspMessage.toBaseIO) with
+  | .ok msg =>
+    match msg with
+    | .response id result =>
+      if let some p ← state.atomically (·.get <&> (·.responseMap.find? id)) then
+        p.resolve <| .ok result
+    | .responseError id code message data? =>
+      if let some p ← state.atomically (·.get <&> (·.responseMap.find? id)) then
+        p.resolve <| .error {code, message, data?}
+    | _ => pure ()
+    readLspMessages stream state
+  | .error e =>
+    state.atomically fun ref => do
+      let s ← ref.get
+      for (_ , p) in s.responseMap do
+        p.resolve <| .error <| LsError.mk ErrorCode.internalError
+          s!"Language server terminated without responding to request" none
+      ref.set {s with error? := e}
 
-/-- Asynchronously read all messages from the language server and build a lazy list of them. -/
-def readMessagesAsync (self : LsWorker) : BaseIO (IO.AsyncList IO.Error Message) :=
-  .delayed <$> self.readMessagesAsyncAux
-
+/-- Spawn the worker process and initialize the language server. -/
 def init (cmd : String) (args : Array String := #[]) (params : InitializeParams) : IO LsWorker := do
   let child ← IO.Process.spawn {cmd, args, toStdioConfig := ipcStdioConfig}
-  let ls : LsWorker := {child, state := ← IO.mkRef {}}
-  let messages ← ls.readMessagesAsync
-  ls.state.modify ({· with messages})
+  let state : IO.Mutex LsState ← IO.Mutex.new {}
+  discard <| BaseIO.asTask <|
+    readLspMessages (IO.FS.Stream.ofHandle child.stdout) state
+  let ls : LsWorker := {child, state}
   let (⟨capabilities, info?⟩ : InitializeResult) ← ls.call "initialize" params
   ls.notify "initialized" InitializedParams.mk
   return {ls with capabilities, info?}
 
+/-- Exit the language server. -/
 def exit (self : LsWorker) : IO PUnit := do
   let (_ : Json) ← self.call "shutdown" Json.null
   self.notify "exit" Json.null

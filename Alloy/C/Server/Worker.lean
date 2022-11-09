@@ -12,20 +12,20 @@ import Alloy.Util.Server.Worker
 # C Language Server Worker
 
 The language server can be in one of three states:
-* `none`: Failed to start and is thus unsupported
+* `none`: Failed to start and is therefore unsupported
 * `some`: Initialized and is running
 * `undef`: Not yet started, waiting for the first `getLs?` to attempt start
 
 We use the limbo state of `undef` to ensure we do not try to start the
-language server when not needing (e.g., during non-interactive elaboration
-like compilation).
+language server when unnecessary (e.g., during compilation, where elaboration
+is non-interactive).
 -/
 
 open Lean
 
 namespace Alloy.C
 
-initialize serverRef : IO.Ref (LOption LsWorker) ← IO.mkRef .undef
+initialize serverMux : IO.Mutex (LOption LsWorker) ← IO.Mutex.new .undef
 
 def initLs? : BaseIO (Option LsWorker) :=
   let act := some <$> do
@@ -47,15 +47,11 @@ def initLs? : BaseIO (Option LsWorker) :=
       |>.catchExceptions (fun _ => pure ())
     return none
 
-def getLs? : BaseIO (Option LsWorker) := do
-  let ls? : LOption _ ← serverRef.modifyGet fun
-  | .none => (.none, .none)
-  | .some ls => (.some ls, .some ls)
-  | .undef => (.undef, .none) -- locks the reference
-  match ls? with
-  | .none => return none
-  | .some ls => return some ls
-  | .undef =>
-    let some ls ← initLs? | return none
-    serverRef.set (.some ls)
-    return some ls
+def getLs? : BaseIO (Option LsWorker) :=
+  serverMux.atomically fun ref => ref.get >>= fun
+    | .none => return none
+    | .some ls => return some ls
+    | .undef => do
+      let ls? ← initLs?
+      ref.set ls?.toLOption
+      return ls?
