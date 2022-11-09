@@ -13,7 +13,7 @@ lean_lib MyAdd {
 
 lean_lib Test
 
-@[defaultTarget]
+@[default_target]
 lean_exe my_add {
   root := `Main
 }
