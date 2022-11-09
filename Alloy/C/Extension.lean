@@ -11,7 +11,7 @@ open Lean
 namespace Alloy.C
 
 initialize implExt : MapDeclarationExtension Function ←
-  findOrRegisterPersistentExtension `Alloy.C.impl mkMapDeclarationExtension
+  findOrRegisterPersistentExtension `Alloy.C.impl λ _name => mkMapDeclarationExtension
 
 initialize shimExt : ModuleEnvExtension Shim ←
   findOrRegisterPersistentExtension `Alloy.C.shim <|

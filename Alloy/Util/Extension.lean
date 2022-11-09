@@ -24,7 +24,7 @@ We need this because otherwise persistent extensions will encounter a clash
 between their precompiled (via `precompileModules`) version loaded as a shared
 library (via `--load-dynlib`) and their interpreted version imported via olean.
 -/
-@[implementedBy unsafeFindOrRegisterPersistentExtension]
+@[implemented_by unsafeFindOrRegisterPersistentExtension]
 opaque findOrRegisterPersistentExtension {α β σ : Type} [Inhabited σ]
 (name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ)
 

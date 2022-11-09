@@ -12,10 +12,10 @@ open Lean Parser PrettyPrinter
 def raw (fn : ParserFn) (trailingWs := false) : Parser where
   fn := rawFn fn trailingWs
 
-@[combinatorFormatter Alloy.raw] def raw.formatter :=
+@[combinator_formatter Alloy.raw] def raw.formatter :=
   Formatter.visitAtom Name.anonymous
 
-@[combinatorParenthesizer Alloy.raw] def raw.parenthesizer :=
+@[combinator_parenthesizer Alloy.raw] def raw.parenthesizer :=
   Parenthesizer.visitToken
 
 @[inline] def rawUntil (p : Char → Bool) (trailingWs := false) : Parser :=
@@ -27,5 +27,5 @@ def raw (fn : ParserFn) (trailingWs := false) : Parser where
 @[inline] def lineNoAntiquot : Parser :=
   rawUntilCh '\n'
 
-@[runParserAttributeHooks, inline] def line : Parser :=
+@[run_parser_attribute_hooks, inline] def line : Parser :=
   withAntiquot (mkAntiquot "line" `line) lineNoAntiquot

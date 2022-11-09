@@ -13,7 +13,7 @@ lean_lib S {
   nativeFacets := #[Module.oFacet, `alloy.c.o]
 }
 
-@[defaultTarget]
+@[default_target]
 lean_exe s {
   root := `Main
 }

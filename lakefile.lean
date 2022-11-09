@@ -14,7 +14,7 @@ package alloy
 
 lean_lib Alloy
 
-@[defaultTarget]
+@[default_target]
 lean_exe alloy {
   root := `Main
   supportInterpreter := true

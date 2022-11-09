@@ -489,7 +489,7 @@ syntax cExternDecl : cCmd
 -/
 
 /-- Encodes an `h-char-sequence` of the C grammar. -/
-@[runParserAttributeHooks] def angleHeaderName := rawUntilCh '>'
+@[run_parser_attribute_hooks] def angleHeaderName := rawUntilCh '>'
 
 syntax angleHeader := "<" angleHeaderName ">"
 
