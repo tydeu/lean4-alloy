@@ -11,6 +11,6 @@ open Lean Server Lsp
 namespace Alloy.C
 
 initialize
-  chainLspRequestHandler "textDocument/hover" HoverParams (Option Hover) handleHover
-  chainLspRequestHandler "textDocument/semanticTokens/full"  SemanticTokensParams SemanticTokens handleSemanticTokensFull
-  chainLspRequestHandler "textDocument/semanticTokens/range" SemanticTokensRangeParams SemanticTokens handleSemanticTokensRange
+  chainLspRequestHandler "textDocument/hover" handleHover
+  chainLspRequestHandler "textDocument/semanticTokens/full" handleSemanticTokensFull
+  chainLspRequestHandler "textDocument/semanticTokens/range" handleSemanticTokensRange

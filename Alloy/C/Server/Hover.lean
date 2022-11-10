@@ -25,15 +25,19 @@ def handleHover
     let some hoverCPos := shim.leanPosToCLsp? hoverPos | return prev
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
-      ls.withTextDocument nullUri shim.toString "c" do
-        let hover? ← ls.call "textDocument/hover" (α := HoverParams) {
-          textDocument := ⟨nullUri⟩,
-          position := hoverCPos
-        }
-        let some (cHover : Hover) := hover? | return prev
+      let task ←
+        ls.withTextDocument nullUri shim.toString "c" do
+          ls.call "textDocument/hover" {
+            textDocument := ⟨nullUri⟩,
+            position := hoverCPos
+          }
+      bindTask task fun
+      | .ok cHover? => do
+        let some cHover := cHover? | return prev
         bindTask prev fun leanHover? => do
           if let some leanHover := leanHover?.toOption.bind (·) then
             let v := s!"{leanHover.contents.value}\n\n---\n\n{cHover.contents.value}"
             return Task.pure <| .ok <| some {leanHover with contents.value := v}
           else
             return Task.pure <| .ok <| some {cHover with range? := none}
+      | .error e => throw <| cRequestError e

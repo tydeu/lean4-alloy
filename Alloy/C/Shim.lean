@@ -3,7 +3,7 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Alloy.C.Syntax
+import Lean.Data.Position
 
 open Lean
 
@@ -132,10 +132,7 @@ partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
       return leanPos
   failure
 
-/-- A single, reprinted command in a C shim. -/
-abbrev ShimCmd := Cmd
-
-/-- A C shim -- an array of commands with shim source position information. -/
+/-- A shim -- an array of commands with shim source position information. -/
 structure Shim where
   cmds : Array ShimSyntax
   text : FileMap
@@ -160,8 +157,8 @@ instance : ToString Shim := ⟨Shim.toString⟩
 Add a command to the shim.
 Fails if the command could not be reprinted.
 -/
-def pushCmd? (cmd : Cmd) (self : Shim) : Option Shim := do
-  let (code, cmd) ← reprint cmd.raw self.text.source.endPos
+def pushCmd? (cmd : Syntax) (self : Shim) : Option Shim := do
+  let (code, cmd) ← reprint cmd self.text.source.endPos
   let code := self.text.source ++ code ++ "\n"
   return ⟨self.cmds.push cmd, FileMap.ofString code⟩
 
@@ -169,11 +166,11 @@ def pushCmd? (cmd : Cmd) (self : Shim) : Option Shim := do
 Appends an `Array` of commands to the shim.
 Fails if any of the commands could not be reprinted and throws the command.
 -/
-def appendCmds? (cmds : Array Cmd) (self : Shim) : Except Cmd Shim := do
+def appendCmds? (cmds : Array Syntax) (self : Shim) : Except Syntax Shim := do
   let mut shimCmds := self.cmds
   let mut code := self.text.source
   for cmd in cmds do
-    let some (cmdCode, cmd) := reprint cmd.raw code.endPos
+    let some (cmdCode, cmd) := reprint cmd code.endPos
       | throw cmd
     code := code ++ cmdCode ++ "\n"
     shimCmds := shimCmds.push cmd
@@ -183,19 +180,19 @@ def appendCmds? (cmds : Array Cmd) (self : Shim) : Except Cmd Shim := do
 Create a shim from an `Array` of commands.
 Returns an empty shim if any of the commands could not be reprinted.
 -/
-def ofCmds (cmds : Array Cmd) : Shim :=
+def ofCmds (cmds : Array Syntax) : Shim :=
   Shim.empty.appendCmds? cmds |>.toOption.getD Shim.empty
 
 /--
-Find the position within the C shim
+Find the position within the shim
 corresponding to the `leanPos` in the Lean source.
 -/
-def leanPosToC? (self : Shim) (leanPos : String.Pos) : Option String.Pos :=
+def leanPosToShim? (self : Shim) (leanPos : String.Pos) : Option String.Pos :=
   self.cmds.findSome? (·.leanPosToShim? leanPos)
 
 /--
 Find the position within the shim's Lean syntax
-corresponding to the `cPos` in the C shim.
+corresponding to the `shimPos` in the shim.
 -/
-def cPosToLean? (self : Shim) (cPos : String.Pos) : Option String.Pos :=
-  self.cmds.findSome? (·.shimPosToLean? cPos)
+def shimPosToLean? (self : Shim) (shimPos : String.Pos) : Option String.Pos :=
+  self.cmds.findSome? (·.shimPosToLean? shimPos)

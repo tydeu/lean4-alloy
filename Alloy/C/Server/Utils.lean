@@ -6,18 +6,18 @@ Authors: Mac Malone
 import Alloy.C.Shim
 import Lean.Server.Requests
 
-open Lean Server
+open Lean Server JsonRpc
 
 namespace Alloy.C
 
 def Shim.leanPosToCLsp? (self : Shim) (leanPos : String.Pos) : Option Lsp.Position := do
-  self.text.utf8PosToLspPos (← self.leanPosToC? leanPos)
+  self.text.utf8PosToLspPos (← self.leanPosToShim? leanPos)
 
 def Shim.cLspPosToLean? (self : Shim) (cPos : Lsp.Position) : Option String.Pos := do
-  self.cPosToLean? (self.text.lspPosToUtf8Pos cPos)
+  self.shimPosToLean? (self.text.lspPosToUtf8Pos cPos)
 
 def Shim.cPosToLeanLsp? (self : Shim) (cPos : String.Pos) (leanText : FileMap) : Option Lsp.Position := do
-  leanText.utf8PosToLspPos (← self.cPosToLean? cPos)
+  leanText.utf8PosToLspPos (← self.shimPosToLean? cPos)
 
 def Shim.cLspPosToLeanLsp? (self : Shim) (cPos : Lsp.Position) (leanText : FileMap) : Option Lsp.Position := do
   leanText.utf8PosToLspPos (← self.cLspPosToLean? cPos)
@@ -29,3 +29,8 @@ def withFallbackResponse (resp : RequestTask α) (act : RequestM (RequestTask α
   catch e =>
     (←read).hLog.putStrLn s!"C language server request failed: {e.message}"
     return resp
+
+def cRequestError [ToString α] : ResponseError α → RequestError
+| {id, code, message, data?} =>
+  let data := data?.map (s!"\n{·}") |>.getD ""
+  .mk code s!"C language server request {id} failed: {message}{data}"

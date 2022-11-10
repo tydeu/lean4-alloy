@@ -18,7 +18,7 @@ LEAN_EXPORT uint32_t _alloy_c_l_myAdd ( uint32_t x , uint32_t y ) {
 
 ## Building Shims
 
-Alloy exploits Lake's experimental (as of [v3.2.0](https://github.com/leanprover/lake/releases/tag/v3.2.0)) module facets feature to automagically build the shim it produces when compiling the module. Combined with the new `precompileModules` feature, this allows the shim code to be directly used by importers in a interpreted context (e.g., for `#eval` or when editing).
+Alloy exploits Lake's [module facets feature](https://github.com/leanprover/lake/tree/v4.0.0#defining-new-facets) to automagically build the shim it produces when compiling the module. Combined with the new `precompileModules` feature, this allows the shim code to be directly used by importers in a interpreted context (e.g., for `#eval` or when editing).
 
 To use Alloy with your project and build shims for a library, add the following to your Lakefile:
 
@@ -33,7 +33,7 @@ lean_lib <your-lib> {
 }
 ```
 
-Take a look at the [examples](examples) to see how all of this works. The [`my_add`](examples/my_add) example provides a minimal setup whereas the [`S`](examples/S) example provides a more complete demonstration of Alloy's power.
+Take a look at the [examples](examples) to see how all of this works. The [my_add](examples/my_add) example provides a minimal setup whereas the [S](examples/S) example provides a more complete demonstration of Alloy's power.
 
 ## Disclaimer
 

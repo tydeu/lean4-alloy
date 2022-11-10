@@ -15,3 +15,9 @@ def nullUri : DocumentUri :=
     "file:///nul"
   else
     "file:///dev/null"
+
+/-- Like `Lean.Server.chainLspRequestHandler`, but uses `LsCall`. -/
+@[macro_inline] def chainLspRequestHandler
+(method : String) [LsCall method α β] [FromJson α] [ToJson β]
+(handler : α → RequestTask β → RequestM (RequestTask β)) : IO Unit :=
+  Lean.Server.chainLspRequestHandler method α β handler

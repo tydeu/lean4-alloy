@@ -41,7 +41,18 @@ structure SemanticTokenEntry where
 protected def SemanticTokenEntry.ordLt (a b : SemanticTokenEntry) : Bool:=
   if a.line = b.line then a.startChar < b.startChar else a.line < b.line
 
-def processLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.run do
+def encodeTokenEntries (entries : Array SemanticTokenEntry) : Array Nat := Id.run do
+  let mut data := #[]
+  let mut lastLine := 0
+  let mut lastChar := 0
+  for ⟨line, char, len, type, modMask⟩ in entries do
+    let deltaLine := line - lastLine
+    let deltaStart := if line = lastLine then char - lastChar else char
+    data := data ++ #[deltaLine, deltaStart, len, type, modMask]
+    lastLine := line; lastChar := char
+  return data
+
+def decodeLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.run do
   let mut line := 0
   let mut char := 0
   let mut entries : Array SemanticTokenEntry := #[]
@@ -53,7 +64,8 @@ def processLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.run do
     entries := entries.push ⟨line, char, len, type, modMask⟩
   return entries
 
-def processCTokens (data : Array Nat) (shim : Shim) (text : FileMap)
+def decodeShimTokens
+(data : Array Nat) (shim : Shim) (text : FileMap)
 (beginPos endPos : String.Pos) (types modifiers : Array String)
 : Array SemanticTokenEntry := Id.run do
   let mut line := 0
@@ -64,13 +76,13 @@ def processCTokens (data : Array Nat) (shim : Shim) (text : FileMap)
       | return entries -- We are being fault tolerant here, maybe we shouldn't be
     line := line + deltaLine
     char := if deltaLine = 0 then char + deltaStart else deltaStart
-    let cPos := shim.text.lspPosToUtf8Pos ⟨line, char⟩
-    let some pos := shim.cPosToLean? cPos
+    let shimPos := shim.text.lspPosToUtf8Pos ⟨line, char⟩
+    let some pos := shim.shimPosToLean? shimPos
       | continue -- Ditto
     unless beginPos < pos && pos < endPos do
       continue
     let leanLen :=
-      shim.cPosToLean? (cPos + ⟨len - 1⟩) |>.map
+      shim.shimPosToLean? (shimPos + ⟨len - 1⟩) |>.map
       (fun p => (p - pos).byteIdx + 1) |>.getD len
     let lspPos := text.utf8PosToLspPos pos
     let mods := bitMaskToArray modifiers modMask
@@ -82,17 +94,6 @@ def processCTokens (data : Array Nat) (shim : Shim) (text : FileMap)
     entries := entries.push ⟨lspPos.line, lspPos.character, leanLen, type, modMask⟩
   return entries
 
-def processTokenEntries (entries : Array SemanticTokenEntry) : Array Nat := Id.run do
-  let mut data := #[]
-  let mut lastLine := 0
-  let mut lastChar := 0
-  for ⟨line, char, len, type, modMask⟩ in entries do
-    let deltaLine := line - lastLine
-    let deltaStart := if line = lastLine then char - lastChar else char
-    data := data ++ #[deltaLine, deltaStart, len, type, modMask]
-    lastLine := line; lastChar := char
-  return data
-
 def handleSemanticTokens
 (beginPos endPos : String.Pos) (prev : RequestTask SemanticTokens)
 : RequestM (RequestTask SemanticTokens) := do
@@ -100,23 +101,27 @@ def handleSemanticTokens
   let afterEnd snap := snap.isAtEnd || snap.beginPos > endPos
   bindWaitFindSnap doc afterEnd (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
-    if shim.isEmpty then do return prev
+    if shim.isEmpty then return prev
     let some ls ← getLs? | return prev
     let some provider := ls.capabilities.semanticTokensProvider? | return prev
     let {tokenTypes, tokenModifiers} := provider.legend
     withFallbackResponse prev do
-      ls.withTextDocument nullUri shim.toString "c" do
-        let tokens ← ls.call "textDocument/semanticTokens/full"
-          (α := SemanticTokensParams) (β := SemanticTokens) ⟨⟨nullUri⟩⟩
-        let cEntries := processCTokens tokens.data
-          shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
+      let task ←
+        ls.withTextDocument nullUri shim.toString "c" do
+          ls.call "textDocument/semanticTokens/full" ⟨⟨nullUri⟩⟩
+      bindTask task fun
+      | .ok shimTokens =>
         bindTask prev fun
+        | .ok leanTokens =>
+          let shimEntries := decodeShimTokens shimTokens.data
+            shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
+          let leanEntries := decodeLeanTokens leanTokens.data
+          let sortedEntries := shimEntries ++ leanEntries
+            |>.qsort SemanticTokenEntry.ordLt
+          let data := encodeTokenEntries sortedEntries
+          return Task.pure <| .ok {leanTokens with data}
         | .error e => throw e
-        | .ok tokens => do
-          let leanEntries := processLeanTokens tokens.data
-          let sortedEntries := cEntries ++ leanEntries |>.qsort SemanticTokenEntry.ordLt
-          let data := processTokenEntries sortedEntries
-          return Task.pure <| .ok {tokens with data}
+      | .error e => throw <| cRequestError e
 
 def handleSemanticTokensFull
 (_ : SemanticTokensParams) (prev : RequestTask SemanticTokens)
