@@ -31,15 +31,9 @@ def handleHover
           position := hoverCPos
         }
         let some (cHover : Hover) := hover? | return prev
-        bindTask prev fun x => do
-          if let some leanHover := x.toOption.bind (·) then
-            let range? := leanHover.range? <|> cHover.range?
-            let value := s!"{leanHover.contents.value}\n\n---\n\n{cHover.contents.value}"
-            return Task.pure <| .ok <| some ⟨{kind := .markdown, value}, range?⟩
+        bindTask prev fun leanHover? => do
+          if let some leanHover := leanHover?.toOption.bind (·) then
+            let v := s!"{leanHover.contents.value}\n\n---\n\n{cHover.contents.value}"
+            return Task.pure <| .ok <| some {leanHover with contents.value := v}
           else
-            if let some range := cHover.range? then
-              let some range := shim.cLspRangeToLeanLsp? range text
-                | return Task.pure x
-              return Task.pure <| .ok <| some {cHover with range? := some range}
-            else
-              return Task.pure <| .ok <| some cHover
+            return Task.pure <| .ok <| some {cHover with range? := none}

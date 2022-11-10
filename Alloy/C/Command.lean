@@ -6,6 +6,7 @@ Authors: Mac Malone
 import Alloy.C.IR
 import Alloy.C.Extension
 import Alloy.Util.Syntax
+import Alloy.Util.Binder
 import Lean.Compiler.NameMangling
 import Lean.Elab.ElabRules
 
@@ -23,15 +24,46 @@ scoped elab (name := sectionCmd)
   | .error cmd => throwErrorAt cmd "command is ill-formed (cannot be reprinted)"
 
 scoped macro (name := includeCmd)
-"alloy " &"c " &"include " hdrs:header+ : command =>
-  `(alloy c section $[#include $hdrs]* end)
+"alloy " &"c " &"include " hdrs:header+ : command => do
+  let cmds ← MonadRef.withRef Syntax.missing <|
+    hdrs.mapM fun hdr => `(cCmd|#include $hdr)
+  `(alloy c section $cmds* end)
 
-def bracketedBinders :=
-  many Term.bracketedBinder
+def mkParams (fnType : Lean.Expr)
+(bvs : Array BinderSyntaxView) (irParams : Array IR.Param)
+: MacroM Params := do
+  let mut decls := #[]
+  let mut viewIdx := 0
+  let mut paramIdx := 0
+  let mut fnType := fnType
+  for p in irParams do
+    let mut bv? := none
+    if fnType.isBinding then
+      let name := fnType.bindingName!
+      fnType := fnType.bindingBody!
+      -- Attempt to match the parameter to a following binder of the same name
+      for h : i in [viewIdx:bvs.size] do
+        have := h.upper
+        let bv := bvs[i]
+        viewIdx := viewIdx + 1
+        if bv.id.raw.getId = name then
+          bv? := some bv
+          break
+    if p.ty.isIrrelevant then
+      continue -- Lean omits irrelevant parameters for extern constants
+    let (id, tyRef) : Ident × Syntax :=
+      if let some bv := bv? then
+        (⟨bv.id.raw⟩, bv.type)
+      else
+        (mkIdent <| Name.mkSimple s!"_{paramIdx}", .missing)
+    let ty ← MonadRef.withRef tyRef <| expandIrParamTypeToC p.borrow p.ty
+    decls := decls.push <| ← `(paramDecl| $ty:cTypeSpec $id:ident)
+    paramIdx := paramIdx + 1
+  `(params| $[$decls:paramDecl],*)
 
 scoped elab (name := externDecl) doc?:«docComment»?
 "alloy " &"c " ex:&"extern " sym?:«str»? attrs?:Term.«attributes»?
-"def " id:declId bs:bracketedBinders " : " type:term " := " body:cStmt : command => do
+"def " id:declId bx:binders " : " type:term " := " body:cStmt : command => do
 
   -- Lean Definition
   let name := (← getCurrNamespace) ++ id.raw[0].getId
@@ -39,26 +71,25 @@ scoped elab (name := externDecl) doc?:«docComment»?
     match sym? with
     | some sym => (sym, sym.getString)
     | none =>
-      let extSym := "_impl_" ++ name.mangle
-      (Syntax.mkStrLit extSym, extSym)
-  let attr ← `(Term.attrInstance| extern $symLit:str)
+      let extSym := "_alloy_c_" ++ name.mangle
+      (Syntax.mkStrLit extSym <| SourceInfo.fromRef id, extSym)
+  let attr ← withRef ex `(Term.attrInstance| extern $symLit:str)
   let attrs := #[attr] ++ expandAttrs attrs?
-  let bs' := bs.raw.getArgs.map (⟨.⟩)
-  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id:declId $[$bs']* : $type)
+  let bs := bx.raw.getArgs.map (⟨.⟩)
+  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id:declId $[$bs]* : $type)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
 
   -- C Definition
   let env ← getEnv
   if let some info := env.find? name then
     if let some decl := IR.findEnvDecl env name then
+      let bvs ← liftMacroM <| bs.concatMapM matchBinder
       let id := mkIdentFrom symLit (Name.mkSimple extSym)
-      let (ty, ptr?) ← liftMacroM <| withRef type <| expandIrTypeToC decl.resultType
-      let params ← liftMacroM <| withRef bs <| expandIrParamsToC info.type decl.params
-      let (head, decls, stmts, tail) := unpackStmtBody body
+      let ty ← liftMacroM <| withRef type <| expandIrResultTypeToC false decl.resultType
+      let params ← liftMacroM <| mkParams info.type bvs decl.params
       let body := packBody body
-      let fn ← `(function|
-        LEAN_EXPORT%$ex $ty:cTypeSpec $[$ptr?:pointer]?
-        $id:ident(%$bs$params:params)%$bs $body:compStmt
+      let fn ← MonadRef.withRef Syntax.missing <| `(function|
+        LEAN_EXPORT%$ex $ty:cTypeSpec $id:ident($params:params) $body:compStmt
       )
       let cmd ← `(alloy c section $fn:function end)
       withMacroExpansion (← getRef) cmd <| elabCommand cmd

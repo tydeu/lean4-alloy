@@ -3,7 +3,7 @@
 Alloy is a Lean 4 library that allows one to embed external FFI code (currently just C) directly within Lean. For example, we can define an external C add function like so:
 
 ```lean
-alloy c extern def my_add (x y : UInt32) : UInt32 := {
+alloy c extern def myAdd (x y : UInt32) : UInt32 := {
   return x + y;
 }
 ```
@@ -11,7 +11,7 @@ alloy c extern def my_add (x y : UInt32) : UInt32 := {
 And Alloy will generate the corresponding C function:
 
 ```c
-LEAN_EXPORT uint32_t _impl_l_Foo_my__add(uint32_t x, uint32_t y) {
+LEAN_EXPORT uint32_t _alloy_c_l_myAdd ( uint32_t x , uint32_t y ) {
   return x + y;
 }
 ```

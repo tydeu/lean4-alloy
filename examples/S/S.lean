@@ -12,12 +12,8 @@ An adaption of Lean 4's ['foreign'][1] example for Alloy.
 alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>
 
 --------------------------------------------------------------------------------
-/-! ## S Type & Related C Utils                                               -/
+/-! ## C Definition of S                                                      -/
 --------------------------------------------------------------------------------
-
-opaque S.nonemptyType : NonemptyType
-def S : Type := S.nonemptyType.type
-instance : Nonempty S := S.nonemptyType.property
 
 alloy c section
 
@@ -54,8 +50,12 @@ static S g_s = {0, 0, NULL};
 end
 
 --------------------------------------------------------------------------------
-/-! ## Lean Bridge                                                            -/
+/-! ## Lean Interface                                                         -/
 --------------------------------------------------------------------------------
+
+opaque S.nonemptyType : NonemptyType
+def S : Type := S.nonemptyType.type
+instance : Nonempty S := S.nonemptyType.property
 
 alloy c extern "lean_mk_S"
 def mkS (x y : UInt32) (string : String) : S := {

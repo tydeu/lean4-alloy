@@ -23,7 +23,7 @@ def toWhitespace (str : String) : String :=
 def reprintLeaf (val : String) : SourceInfo → String
 | .original lead _ trail _ =>
   s!"{toWhitespace lead.toString}{val}{toWhitespace trail.toString}"
-| _  => s!" {val} "
+| _  => s!"{val} "
 
 /--
 Like `Lean.Syntax.reprint`, but transforms comments into whitespace and
@@ -64,7 +64,7 @@ def ShimSyntax.bsize : ShimSyntax → Nat
 where
   sizeLeaf (val : Substring) : SourceInfo → Nat
   | .original lead _ trail _ => lead.bsize + val.bsize + trail.bsize
-  | _  => val.bsize + 2
+  | _  => val.bsize + 1
 
 /--
 Find the position within the `ShimSyntax`
@@ -78,7 +78,6 @@ linear in its performance.
 partial def ShimSyntax.leanPosToShim? (stx : ShimSyntax)
 (leanPos : String.Pos) (shimStartPos : String.Pos := 0) : Option String.Pos := do
   if let .node info _ args := stx then
-    --
     let .synthetic shimStartPos _ := info | failure
     let mut startPos := shimStartPos
     for arg in args do

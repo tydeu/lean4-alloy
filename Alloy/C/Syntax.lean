@@ -66,12 +66,6 @@ instance : Coe CompStmt Stmt where
 ## Other Utilities
 -/
 
-def unpackStmtBody : Stmt → Syntax × Array Declaration × Array Stmt × Syntax
-| `(compStmt|{%$head $decls* $[$stmts:cStmt]* }%$tail) => (head, decls, stmts, tail)
-| stmt => (Syntax.missing, #[], #[stmt], Syntax.missing)
-
-def packBody (stmt : Stmt) : CompStmt :=
-  if stmt.raw.isOfKind ``compStmt then
-    ⟨stmt⟩
-  else
-    Unhygienic.run do withRef stmt `(compStmt| {$stmt:cStmt})
+def packBody : Stmt → CompStmt
+| `(cStmt| $x:compStmt) => x
+| stmt => Unhygienic.run do `(compStmt| {$stmt:cStmt})
