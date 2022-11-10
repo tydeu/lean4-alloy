@@ -128,7 +128,7 @@ partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
     if shimHeadPos ≤ shimPos && shimPos < shimTailPos then
       let shimOff := shimPos - shimHeadPos
       let leanLen := leanTailPos - leanHeadPos
-      let leanPos := leanHeadPos + min shimOff leanLen
+      let leanPos := leanHeadPos + ⟨min shimOff.byteIdx leanLen.byteIdx⟩
       return leanPos
   failure
 
