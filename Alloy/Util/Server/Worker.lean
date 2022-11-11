@@ -18,9 +18,9 @@ instance [ToString α] : ToString (ResponseError α) where
       let data := data?.map (s!"\n{·}") |>.getD ""
       s!"Request {id} failed: {message} (code: {toJson code}){data}"
 
-/-- Like `Lean.Lsp.Ipc.ipcStdioConfig`, but an `abbrev`. -/
-abbrev ipcStdioConfig : IO.Process.StdioConfig :=
-  {stdin := .piped, stdout := .piped, stderr := .inherit}
+/-- A `IO.Process.StdioConfig` with all streams set to `piped`. -/
+abbrev pipedStdioConfig : IO.Process.StdioConfig :=
+  {stdin := .piped, stdout := .piped, stderr := .piped}
 
 /-- State for an `LsWorker`. -/
 structure LsState where
@@ -30,7 +30,7 @@ structure LsState where
 
 /-- A running language server process. -/
 structure LsWorker where
-  child : IO.Process.Child ipcStdioConfig
+  child : IO.Process.Child pipedStdioConfig
   state : IO.Mutex LsState
   capabilities : ServerCapabilities := {}
   info? : Option ServerInfo := none
@@ -59,10 +59,6 @@ namespace LsWorker
 /-- The language server's standard input stream. -/
 def stdin (self : LsWorker) : IO.FS.Stream :=
   IO.FS.Stream.ofHandle self.child.stdin
-
-/-- The language server's standard output stream. -/
-def stdout (self : LsWorker) : IO.FS.Stream :=
-  IO.FS.Stream.ofHandle self.child.stdout
 
 /-- Issue the LSP notification `method` with `param`. -/
 def notify (self : LsWorker) (method : String) [LsNote method α] (param : α) : IO Unit := do
@@ -128,12 +124,21 @@ partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex LsState) :
           s!"Language server terminated without responding to request" none
       ref.set {s with error? := e}
 
+/--
+Pipe lines from the input stream `i` to the output stream `o`
+until an error is encountered.
+-/
+partial def pipeLines (i o : IO.FS.Stream) : BaseIO Unit := do
+  if let .ok _ := ← (i.getLine >>= o.putStr).toBaseIO then pipeLines i o
+
 /-- Spawn the worker process and initialize the language server. -/
 def init (cmd : String) (args : Array String := #[]) (params : InitializeParams) : IO LsWorker := do
-  let child ← IO.Process.spawn {cmd, args, toStdioConfig := ipcStdioConfig}
+  let child ← IO.Process.spawn {cmd, args, toStdioConfig := pipedStdioConfig}
   let state : IO.Mutex LsState ← IO.Mutex.new {}
   discard <| BaseIO.asTask <|
     readLspMessages (IO.FS.Stream.ofHandle child.stdout) state
+  discard <| BaseIO.asTask <|
+    pipeLines (IO.FS.Stream.ofHandle child.stderr) (← IO.getStderr)
   let ls : LsWorker := {child, state}
   let (⟨capabilities, info?⟩) ← IO.ofExcept
     <| ← IO.wait <| ← ls.call "initialize" params

@@ -29,7 +29,7 @@ initialize serverMux : IO.Mutex (LOption LsWorker) ← IO.Mutex.new .undef
 
 def initLs? : BaseIO (Option LsWorker) :=
   let act := some <$> do
-    LsWorker.init "clangd" #[] <| {
+    LsWorker.init "clangd" #["--log=error"] <| {
       capabilities := {
         textDocument? := some {
           hover? := some {
