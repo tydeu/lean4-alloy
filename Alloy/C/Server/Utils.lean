@@ -22,6 +22,12 @@ def Shim.cPosToLeanLsp? (self : Shim) (cPos : String.Pos) (leanText : FileMap) :
 def Shim.cLspPosToLeanLsp? (self : Shim) (cPos : Lsp.Position) (leanText : FileMap) : Option Lsp.Position := do
   leanText.utf8PosToLspPos (← self.cLspPosToLean? cPos)
 
+def Shim.cLspRangeToLeanLsp? (self : Shim) (cRange : Lsp.Range) (leanText : FileMap) : Option Lsp.Range := do
+  let startPos ← self.cLspPosToLeanLsp? cRange.start leanText
+  let beforeEndPos := self.text.source.prev (self.text.lspPosToUtf8Pos cRange.end)
+  let beforeEndPos := self.text.source.next (← self.shimPosToLean? beforeEndPos)
+  return ⟨startPos, leanText.utf8PosToLspPos beforeEndPos⟩
+
 /-- Fallback to returning `resp` if `act` errors. Also, log the error message. -/
 def withFallbackResponse (resp : RequestTask α) (act : RequestM (RequestTask α)) : RequestM (RequestTask α) :=
   try

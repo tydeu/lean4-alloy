@@ -14,3 +14,6 @@ initialize
   chainLspRequestHandler "textDocument/hover" handleHover
   chainLspRequestHandler "textDocument/semanticTokens/full" handleSemanticTokensFull
   chainLspRequestHandler "textDocument/semanticTokens/range" handleSemanticTokensRange
+  chainLspRequestHandler "textDocument/declaration" (handleGoto "textDocument/declaration")
+  chainLspRequestHandler "textDocument/definition" (handleGoto "textDocument/definition")
+  chainLspRequestHandler "textDocument/typeDefinition" (handleGoto "textDocument/typeDefinition")

@@ -16,6 +16,12 @@ def nullUri : DocumentUri :=
   else
     "file:///dev/null"
 
+def isNullUri (uri : DocumentUri) : Bool :=
+  if System.Platform.isWindows then
+    uri.endsWith "nul"
+  else
+    uri = "file:///dev/null"
+
 /-- Like `Lean.Server.chainLspRequestHandler`, but uses `LsCall`. -/
 @[macro_inline] def chainLspRequestHandler
 (method : String) [LsCall method α β] [FromJson α] [ToJson β]

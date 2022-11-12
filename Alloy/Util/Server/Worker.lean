@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Lean.Data.Lsp.Communication
-import Alloy.Util.Server.Initialize
+import Alloy.Util.Server.Methods
 
 open Lean hiding Message
 open Lean.Lsp Lean.JsonRpc
@@ -34,25 +34,6 @@ structure LsWorker where
   state : IO.Mutex LsState
   capabilities : ServerCapabilities := {}
   info? : Option ServerInfo := none
-
-/-- An LSP notification method. -/
-class LsNote (method : String) (α : outParam $ Type u)
-  extends ToJson α
-
-@[default_instance low] instance : LsNote m Json := {}
-instance : LsNote "initialized" InitializedParams := {}
-instance : LsNote "textDocument/didOpen" DidOpenTextDocumentParams := {}
-instance : LsNote "textDocument/didClose" DidCloseTextDocumentParams := {}
-
-/-- An LSP request/response method. -/
-class LsCall (method : String) (α : outParam $ Type u) (β : outParam $ Type w)
-  extends ToJson α, FromJson β
-
-@[default_instance low] instance : LsCall m Json Json := {}
-instance : LsCall "initialize" InitializeParams InitializeResult := {}
-instance : LsCall "textDocument/hover" HoverParams (Option Hover) := {}
-instance : LsCall "textDocument/semanticTokens/full"  SemanticTokensParams SemanticTokens := {}
-instance : LsCall "textDocument/semanticTokens/range" SemanticTokensRangeParams SemanticTokens := {}
 
 namespace LsWorker
 
