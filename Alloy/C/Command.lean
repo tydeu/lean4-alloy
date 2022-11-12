@@ -15,6 +15,7 @@ open Lean Parser Elab Command
 
 syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
 
+/-- A section of C code to include verbatim in the module's shim. -/
 scoped elab (name := sectionCmd)
 "alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
   let env ← getEnv
@@ -23,6 +24,10 @@ scoped elab (name := sectionCmd)
   | .ok shim => setEnv <| shimExt.setState env shim
   | .error cmd => throwErrorAt cmd "command is ill-formed (cannot be reprinted)"
 
+/--
+Include the provided C header files in the module's shim.
+A convenience macro to create multiple `#include` directives at once.
+-/
 scoped macro (name := includeCmd)
 "alloy " &"c " &"include " hdrs:header+ : command => do
   let cmds ← MonadRef.withRef Syntax.missing <|
@@ -61,6 +66,18 @@ def mkParams (fnType : Lean.Expr)
     paramIdx := paramIdx + 1
   `(params| $[$decls:paramDecl],*)
 
+/--
+Create an opaque Lean definition implemented by an external C function
+included in the module's shim whose definition is provided here. That is:
+```
+alloy c extern "alloy_foo" def foo (x : UInt32) : UInt32 := {...}
+```
+is essentially equivalent to
+```
+@[extern "alloy_foo"] opaque foo (x : UInt32) : UInt32
+alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
+```
+-/
 scoped elab (name := externDecl) doc?:«docComment»?
 "alloy " &"c " ex:&"extern " sym?:«str»? attrs?:Term.«attributes»?
 "def " id:declId bx:binders " : " type:term " := " body:cStmt : command => do

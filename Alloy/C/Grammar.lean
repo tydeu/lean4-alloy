@@ -8,85 +8,150 @@ import Alloy.Util.Parser
 /-!
 # The C Grammar
 
-This module contains a a Lean DSL that encodes the standard C syntax.
+This module contains a Lean DSL that encodes the standard C syntax.
 
-It uses Microsoft's [C Language Syntax Summary][1] and the C11 standard's
-[specification][2] as references.
+It uses Microsoft's [C Language Syntax Summary][1], the C11 standard's
+[specification][2], and cppreference's [C language][3] as guidelines.
 
 [1]: https://docs.microsoft.com/en-us/cpp/c-language/c-language-syntax-summary
-[2]: http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf#page=476
+[2]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf#page=476
+[3]: https://en.cppreference.com/w/c/language
 -/
 
 namespace Alloy.C
 
---------------------------------------------------------------------------------
 /-!
-## Type Abstraction
+## Basic Abstractions
 
 We need to forward declare these in order to construct the syntax `type`
-which is used by the cast expressions (`castExpr`) which is part of a constant
-expression (`constExpr`) which is, in term, used in aggregate types
-(e.g., `struct`).
+which is used by the cast expressions (`castExpr`).
 
 A good reference on C representation of types is:
 https://blog.robertelder.org/building-a-c-compiler-type-system-a-canonical-type-representation/
 -/
---------------------------------------------------------------------------------
 
--- Encodes a `type-qualifier` of the C grammar.
-declare_syntax_cat cTypeQ (behavior := symbol)
-
--- Encodes a `type-specifier` of the C grammar.
-declare_syntax_cat cTypeSpec (behavior := symbol)
-
-/-
-Encodes a `specifier-qualifier` of the C grammar
-(which includes an `alignment-specifier` in Microsoft's C standard)
+/--
+A `specifier-qualifier` of the C grammar,
+which includes an `alignment-specifier` in Microsoft's C standard.
 -/
 declare_syntax_cat cSpec (behavior := symbol)
 
-syntax cTypeQ : cSpec
+/-- A `type-specifier` of the C grammar. -/
+declare_syntax_cat cTypeSpec (behavior := symbol)
+
 syntax cTypeSpec : cSpec
 
-/-- Encodes a `pointer` of the C grammar. -/
+/-- A `type-qualifier` of the C grammar. -/
+declare_syntax_cat cTypeQ (behavior := symbol)
+
+syntax cTypeQ : cSpec
+
+/-- A `pointer` of the C grammar. -/
 syntax pointer := (" * " cTypeQ*)+
 
--- Encodes a `direct-declarator` of the C grammar.
+/-- A `direct-declarator` of the C grammar. -/
 declare_syntax_cat cDirDtor (behavior := symbol)
 
--- Encodes a `direct-abstract-declarator` of the C grammar.
+/-- A `direct-abstract-declarator` of the C grammar. -/
 declare_syntax_cat cDirAbsDtor (behavior := symbol)
 
--- Encodes an `declarator` of the C grammar.
+/-- A `declarator` of the C grammar. -/
 syntax declarator := «pointer»? cDirDtor
 
--- Encodes an `abstract-declarator` of the C grammar.
+/-- An `abstract-declarator` of the C grammar. -/
 syntax absDeclarator := pointer optional(cDirAbsDtor) <|> cDirAbsDtor
 
-/-- Encodes an `type` of the C grammar. -/
+/-- A [`type`](https://en.cppreference.com/w/c/language/type) of the C grammar. -/
 syntax type := cSpec+ optional(absDeclarator)
+
+/--
+An `assignment-expression` of the C grammar.
+That is, a single (not comma separated) C `expression`.
+-/
+declare_syntax_cat cExpr (behavior := symbol)
+
+/--
+A [`constant-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/constant_expression
+-/
+syntax constExpr := cExpr:20
+
+/-- A `designator` of the C grammar. -/
+declare_syntax_cat cDesignator
+
+/-- An `initializer` of the C grammar. -/
+declare_syntax_cat cInitializer
+
+/-- Designates the index of a C array to initialize. -/
+syntax "[" constExpr "]" : cDesignator
+
+/-- Designates the field of a C aggregate to initialize. -/
+syntax "." ident : cDesignator
+
+/-- A C initializer that uses an expression. -/
+syntax cExpr : cInitializer
+
+/-- An element of a C initializer list. -/
+syntax initializerElem := (optional(cDesignator+ "=") cInitializer)
+
+/-- A C aggregate initializer that uses an initializer list. -/
+syntax "{" initializerElem,*,? "}" : cInitializer
 
 --------------------------------------------------------------------------------
 /-! ## Expressions                                                            -/
 --------------------------------------------------------------------------------
 
-/-
-Encodes a single (not comma separated) `expression` of the C grammar.
-That is, it encodes the formal  `assignment-expression` of the C grammar.
--/
-declare_syntax_cat cExpr (behavior := symbol)
-
 /-!
 ### Primary Expressions
 
-Collectively (partially) encode a `primary-expression` of the C grammar.
+Collectively (mostly) encode a `primary-expression` of the C grammar.
 -/
 
+/--
+A C identifier implemented with a Lean identifier.
+Thus, it will also capture simple member accesses and prefixed character
+constants.
+-/
 syntax:max ident : cExpr
-syntax:max num : cExpr
+
+/--
+A C [`integer-constant`][1] implemented with a Lean numeric literal.
+
+[1]: https://en.cppreference.com/w/c/language/integer_constant
+-/
+syntax:max num (noWs (&"u" <|> &"U" <|> &"l" <|> &"L" <|> &"ll" <|> &"LL"))? : cExpr
+
+/--
+A C [`floating-constant`][1] implemented with a Lean scientific literal.
+Thus, it does not currently support hexadecimal floating constants.
+
+[1]: https://en.cppreference.com/w/c/language/floating_constant
+-/
+syntax:max scientific (noWs (&"f" <|> &"F" <|> &"l" <|> &"L"))? : cExpr
+
+/--
+A C [`character-constant`][1] implemented with a Lean character literal.
+Thus, it thus does not currently support prefixed or multicharacter constants.
+
+[1]: https://en.cppreference.com/w/c/language/character_constant
+-/
 syntax:max char : cExpr
-syntax:max str : cExpr
+
+/-- A C [`string-literal`](https://en.cppreference.com/w/c/language/string_literal). -/
+syntax:max ((&"u8" <|> &"u" <|> &"U" <|> &"L") noWs)? str : cExpr
+
+/-- A C [compound literal](https://en.cppreference.com/w/c/language/compound_literal). -/
+syntax:max "(" type ")" "{" initializerElem,*,? "}" : cExpr
+
+/-- A C parenthetical expression. -/
 syntax:max "(" cExpr ")" : cExpr
+
+/-- A `generic-association` of the C grammar. -/
+syntax genericAssoc := ident ":" cExpr <|> "default" ":" cExpr
+
+/-- A `generic-selection` expression of the C grammar (since C11). -/
+syntax:max "_Generic" "(" cExpr "," genericAssoc,+ ")" : cExpr
 
 /-!
 ### Postfix Expressions
@@ -94,12 +159,49 @@ syntax:max "(" cExpr ")" : cExpr
 Collectively encode a `postfix-expression` of the C grammar.
 -/
 
-syntax:1000 cExpr:1000 noWs "[" cExpr "]" : cExpr
-syntax:1000 cExpr:1000 noWs "(" cExpr,* ")" : cExpr
-syntax:1000 cExpr:1000 noWs "." noWs ident : cExpr
-syntax:1000 cExpr:1000 noWs "->" noWs ident : cExpr
-syntax:1000 cExpr:1000 noWs "++" : cExpr
-syntax:1000 cExpr:1000 noWs "--" : cExpr
+/--
+A C [subscript][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_member_access#Subscript
+-/
+syntax:1000 cExpr:1000 "[" cExpr "]" : cExpr
+
+/--
+A C [functional call][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_other#Function_call
+-/
+syntax:1000 cExpr:1000 "(" cExpr,* ")" : cExpr
+
+/--
+A C [member access][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_member_access#Member_access
+-/
+syntax:1000 cExpr:1000 "." ident : cExpr
+
+/--
+A C [member access through pointer][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_member_access#Member_access_through_pointer
+-/
+syntax:1000 cExpr:1000 "->" ident : cExpr
+
+/--
+A C [increment][1] postfix expression.
+The result of the expression is the original value of the operand.
+
+[1]: https://en.cppreference.com/w/c/language/operator_incdec
+-/
+syntax:1000 cExpr:1000 "++" : cExpr
+
+/--
+A C [decrement][1] postfix expression.
+The result of the expression is the original value of the operand.
+
+[1]: https://en.cppreference.com/w/c/language/operator_incdec
+-/
+syntax:1000 cExpr:1000 "--" : cExpr
 
 /-!
 ### Unary Expressions
@@ -107,15 +209,79 @@ syntax:1000 cExpr:1000 noWs "--" : cExpr
 Collectively encode a `unary-expression` of the C grammar.
 -/
 
-syntax:500 "++" noWs cExpr:500 : cExpr
-syntax:500 "--" noWs cExpr:500 : cExpr
-syntax:500 "&" noWs cExpr:100 : cExpr
-syntax:500 "*" noWs cExpr:100 : cExpr
-syntax:500 "+" noWs cExpr:100 : cExpr
-syntax:500 "-" noWs cExpr:100 : cExpr
-syntax:500 "~" noWs cExpr:100 : cExpr
-syntax:500 "!" noWs cExpr:100 : cExpr
+/--
+An C [increment][1] prefix expression.
+The result of the expression is the incremented value of the operand.
+
+[1]: https://en.cppreference.com/w/c/language/operator_incdec
+-/
+syntax:500 "++" cExpr:500 : cExpr
+
+/--
+An C [decrement][1] prefix expression.
+The result of the expression is the decremented value of the operand.
+
+[1]: https://en.cppreference.com/w/c/language/operator_incdec
+-/
+syntax:500 "--" cExpr:500 : cExpr
+
+/--
+A C [address-of][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_member_access#Address_of
+-/
+syntax:500 "&" cExpr:100 : cExpr
+
+/--
+A C [pointer dereference][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_member_access#Deference
+-/
+syntax:500 "*" cExpr:100 : cExpr
+
+/--
+A C [unary plus][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Unary_arithmetic
+-/
+syntax:500 "+" cExpr:100 : cExpr
+
+/--
+A C [unary minus][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Unary_arithmetic
+-/
+syntax:500 "-" cExpr:100 : cExpr
+
+/--
+A C [bitwise NOT][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Bitwise_logic
+-/
+syntax:500 "~" cExpr:100 : cExpr
+
+/--
+A C [logical NOT][1] expression.
+
+[1]: https://en.cppreference.com/w/c/language/operator_logical#Logical_NOT
+-/
+syntax:500 "!" cExpr:100 : cExpr
+
+/--
+A C [sizeof][1] expression.
+Returns the size, in bytes, of the object representation of the type of the
+provided expression.
+
+[1]: https://en.cppreference.com/w/c/language/sizeof
+-/
 syntax:500 "sizeof" cExpr:500 : cExpr
+
+/--
+A C [sizeof][1] expression.
+Returns the size, in bytes, of the object representation of the provided type.
+
+[1]: https://en.cppreference.com/w/c/language/sizeof
+-/
 syntax:500 "sizeof" "(" cSpec ")" &" _Alignof" "(" cSpec ")" : cExpr
 
 
@@ -123,106 +289,160 @@ syntax:500 "sizeof" "(" cSpec ")" &" _Alignof" "(" cSpec ")" : cExpr
 ### Cast Expression
 -/
 
-/-- Encodes a `cast-expression` of the C grammar. -/
-syntax:100 (name := castExpr) "(" type ")" cExpr:100 : cExpr
+/-- A [`cast-expression`](https://en.cppreference.com/w/c/language/cast) of the C grammar. -/
+syntax castExpr := "(" type ")" cExpr:100
+attribute [cExpr_parser 100] castExpr
 
 /-!
 ### Multiplicative Expressions
 
-Collectively encode a `multiplicative-expression` of the C grammar.
+Collectively encode a [`multiplicative-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Multiplicative_operators
 -/
 
+/-- A C multiplication expression. -/
 syntax:70 (name := mulExpr) cExpr:70 " * " cExpr:71 : cExpr
+
+/-- A C division expression. -/
 syntax:70 (name := divExpr) cExpr:70 " / " cExpr:71 : cExpr
-syntax:70 (name := modExpr) cExpr:70 " % " cExpr:71 : cExpr
+
+/-- A C remainder expression. -/
+syntax:70 (name := remExpr) cExpr:70 " % " cExpr:71 : cExpr
 
 /-!
 ### Additive Expressions
 
-Collectively encode an `additive-expression` of the C grammar.
+Collectively encode an [`additive-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Additive_operators
 -/
 
+/-- A C addition expression. -/
 syntax:65 (name := addExpr) cExpr:65 " + " cExpr:66 : cExpr
+
+/-- A C subtraction expression. -/
 syntax:65 (name := subExpr) cExpr:65 " - " cExpr:66 : cExpr
 
 /-!
 ### Shift Expressions
 
-Collectively encode a `shift-expression` of the C grammar.
+Collectively encode a [`shift-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Shift_operators
 -/
 
+/-- A C left shift expression. Left shifts the LHS by RHS bits.  -/
 syntax:60 (name := shlExpr) cExpr:60 " << " cExpr:61 : cExpr
+
+/-- A C right shift expression. Right shifts the LHS by RHS bits.  -/
 syntax:60 (name := shrExpr) cExpr:60 " >> " cExpr:61 : cExpr
 
 /-!
 ### Relational Expressions
 
-Collectively encode a `relational-expression` of the C grammar.
+Collectively encode a [`relational-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_comparison#Relational_operators
 -/
 
+/-- A C less-than expression. -/
 syntax:55 (name := ltExpr) cExpr:55 " < " cExpr:56 : cExpr
+
+/-- A C greater-than expression. -/
 syntax:55 (name := gtExpr) cExpr:55 " > " cExpr:56 : cExpr
+
+/-- A C less-or-equal expression. -/
 syntax:55 (name := leExpr) cExpr:55 " <= " cExpr:56 : cExpr
+
+/-- A C greater-or-equal expression. -/
 syntax:55 (name := geExpr) cExpr:55 " >= " cExpr:56 : cExpr
 
 
 /-!
 ### Equality Expressions
 
-Collectively encode an `equality-expression` of the C grammar.
+Collectively encode an [`equality-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_comparison#Equality_operators
 -/
 
+/-- A C equal-to expression. -/
 syntax:50 (name := eqExpr) cExpr:50 " == " cExpr:51 : cExpr
+
+/-- A C not-equal-to expression. -/
 syntax:50 (name := neExpr) cExpr:50 " != " cExpr:51 : cExpr
 
 /-!
 ### Bitwise Expressions
+
+Collectively encodes the [binary bitwise operators][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_arithmetic#Bitwise_logic
 -/
 
-/-- Encodes an `AND-expression` of the grammar. -/
+/-- An `AND-expression` of the C grammar. -/
 syntax:45 (name := andExpr) cExpr:45  " & " cExpr:46 : cExpr
 
-/-- Encodes an `exclusive-OR-expression` of the grammar. -/
+/-- An `exclusive-OR-expression` of the C grammar. -/
 syntax:43 (name := xorExpr) cExpr:43  " ^ " cExpr:44 : cExpr
 
-/-- Encodes an `inclusive-OR-expression` of the grammar. -/
+/-- An `inclusive-OR-expression` of the C grammar. -/
 syntax:40 (name := orExpr) cExpr:40 " | " cExpr:41 : cExpr
 
 /-!
 ### Logical Expressions
+
+Collectively encodes the [binary logical operators][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_logical
 -/
 
-/-- Encodes a `logical-AND-expression` of the grammar. -/
+/-- A `logical-AND-expression` of the C grammar. -/
 syntax:35 (name := logicalAndExpr) cExpr:35 " && " cExpr:36 : cExpr
 
-/-- Encodes a `logical-OR-expression` of the grammar. -/
+/-- A `logical-OR-expression` of the C grammar. -/
 syntax:30 (name := logicalOrExpr) cExpr:30 " || " cExpr:31 : cExpr
 
 /-!
 ### Conditional Expression
 -/
 
-/- Encodes a `conditional-expression` of the C grammar. -/
+/--
+A [`conditional-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_other#Conditional_operator
+-/
 syntax:20 (name := condExpr) cExpr:21 " ? " cExpr,+ " : " cExpr:20 : cExpr
 
 /-!
 ### Assignment Expression
+
+C assignment and compound assignment expressions are binary operations
+that modify the variable on the LHS using the value on the RHS.
 -/
 
-/-- Encodes an `assignment-operator` of the C grammar. -/
-syntax assignOp :=
-  " = " <|> " *= " <|> " /= " <|> " %= " <|> " += " <|> " -= " <|>
-  " <<= " <|> " >>= " <|> " &= " <|> " ^= " <|> " |= "
+/-- An `assignment-operator` of the C grammar. -/
+declare_syntax_cat cAssignOp
 
-/-- Encodes a non-conditional `assignment-expression` of the C grammar. -/
-syntax:20 (name := assignExpr) cExpr:500 assignOp cExpr:20 : cExpr
+syntax " = " : cAssignOp
+syntax " *= " : cAssignOp
+syntax " /= " : cAssignOp
+syntax " %= " : cAssignOp
+syntax " += " : cAssignOp
+syntax " -= " : cAssignOp
+syntax " <<= " : cAssignOp
+syntax " >>= " : cAssignOp
+syntax " &= " : cAssignOp
+syntax " ^= " : cAssignOp
+syntax " |= " : cAssignOp
 
-/-!
-### Constant Expression
+/--
+A non-conditional [`assignment-expression`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/operator_assignment
 -/
-
-/-- Encodes a `constant-expression` of the C grammar. -/
-def constExpr := condExpr
+syntax:15 (name := assignExpr) cExpr:500 cAssignOp cExpr:15 : cExpr
 
 --------------------------------------------------------------------------------
 /-! ## Declaration Syntax                                                     -/
@@ -232,27 +452,57 @@ def constExpr := condExpr
 ### Specifiers
 -/
 
--- Encodes a `declaration-specifier` of the C grammar.
+/-- A `declaration-specifier` of the C grammar. -/
 declare_syntax_cat cDeclSpec
 
 syntax cSpec : cDeclSpec
 
--- Encodes a `storage-class-specifier` of the C grammar.
+/-!
+#### Storage Class Specifiers
+-/
+
+/--
+A [`storage-class-specifier`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/storage_duration
+-/
 declare_syntax_cat cStorageClassSpec (behavior := symbol)
 
+/-- The C automatic storage duration specifier. -/
 syntax "auto" : cStorageClassSpec
+
+/-- The C external linkage specifier. -/
 syntax "extern" : cStorageClassSpec
+
+/-- The C register storage hint specifier. -/
 syntax "register" : cStorageClassSpec
+
+/-- The C static storage duration and internal linkage specifier. -/
 syntax "static" : cStorageClassSpec
+
+/-- The C thread storage duration specifier. -/
 syntax "_Thread_local" : cStorageClassSpec
+
+/-- The C [typedef](https://en.cppreference.com/w/cpp/language/typedef) specifier. -/
 syntax "typedef" : cStorageClassSpec
 
 syntax cStorageClassSpec : cDeclSpec
 
--- Encodes a `function-specifier` of the C grammar.
+/-!
+#### Function Specifiers
+-/
+
+/--
+A [`function-specifier`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/function_specifiers
+-/
 declare_syntax_cat cFunSpec (behavior := symbol)
 
+/-- The C [inline](https://en.cppreference.com/w/c/language/inline) function specifier.-/
 syntax "inline" : cFunSpec
+
+/-- The C [_Noreturn](https://en.cppreference.com/w/c/language/_Noreturn) function specifier. -/
 syntax "_Noreturn" : cFunSpec
 
 syntax cFunSpec : cDeclSpec
@@ -268,13 +518,15 @@ syntax "static" cTypeQ* cExpr : cIndex
 syntax cTypeQ+ "static"? cExpr : cIndex
 syntax cTypeQ* "*" : cIndex
 
-/-- Encodes a `parameter-declaration` of the C grammar. -/
+/-- A `parameter-declaration` of the C grammar. -/
 syntax paramDecl := cDeclSpec+ (declarator <|> absDeclarator)?
 
-/-- Encodes a `parameter-type-list` of the C grammar. -/
+/-- A `parameter-type-list` of the C grammar. -/
 syntax params := paramDecl,+,? "..."?
 
+/-- The name of a declaration. -/
 syntax:max ident : cDirDtor
+
 syntax:max "(" declarator ")" : cDirDtor
 syntax:arg cDirDtor:arg "[" optional(cIndex)"]" : cDirDtor
 syntax:arg cDirDtor:arg "(" params ")" : cDirDtor
@@ -290,30 +542,25 @@ syntax:arg cDirAbsDtor:arg "(" optional(params) ")" : cDirAbsDtor
 ### Declarations
 -/
 
--- Encodes a `designator` of the C grammar.
-declare_syntax_cat cDesignator
-
--- Encodes a `initializer` of the C grammar.
-declare_syntax_cat cInitializer
-
-syntax "[" constExpr "]" : cDesignator
-syntax "." ident : cDesignator
-
-syntax cExpr : cInitializer
-syntax "{" (optional(cDesignator+ "=") cInitializer),+,? "}" : cInitializer
-
-/-- Encodes an `init-declarator` of the C grammar. -/
+/-- An `init-declarator` of the C grammar. -/
 syntax initDeclarator := declarator optional(" = " cInitializer)
 
 /--
-Encodes a `declaration` of the C grammar.
+A [`declaration`][1] of the C grammar.
 
-Note that an `ident` can be a `cDeclSpec` or `declarator`.
-Lean will thus eagerly eat a sequence of `ident` up as solely a
-sequence of  `cDeclSpec` and then fail to parse the declaration.
-The lookahead ensures the last `ident` is parsed properly as a `declarator`.
+[1]: https://en.cppreference.com/w/c/language/declarations
 -/
 syntax declaration :=
+  /-
+  Recall that an `ident` can be a `cDeclSpec` or a `declarator`. The lookahead
+  is needed to prevent Lean from robbing a `declarator` of its leading `ident`.
+  For example, in `int x = 5;` would be parsed as  `int : cDeclSpec`,
+  `x : cDeclSpec`, and then error as `= 5` is not a valid declarator.
+
+  Also note that in `int x;` the syntax kind of `x` is ambiguous in the C
+  grammar -- it could be a `cDeclSpec` or a `declarator`. This parses it as a
+  `cDeclSpec`.
+  -/
   (atomic(lookahead(cDeclSpec (cDeclSpec <|> declarator <|> ";"))) cDeclSpec)+
   initDeclarator,* ";"
 
@@ -325,36 +572,77 @@ syntax declaration :=
 ### Qualifiers
 -/
 
+/-- The C [const](https://en.cppreference.com/w/c/language/const) type qualifier. -/
 syntax "const" : cTypeQ
+
+/-- The C [restrict](https://en.cppreference.com/w/c/language/restrict) type qualifier. -/
 syntax "restrict" : cTypeQ
+
+/-- The C [volatile](https://en.cppreference.com/w/c/language/volatile) type qualifier. -/
 syntax "volatile" : cTypeQ
+
+/-- The C [_Atomic](https://en.cppreference.com/w/c/language/_Atomic) type qualifier. -/
 syntax "_Atomic" : cTypeQ
 
 /-!
 ### Primitives
 -/
 
+/-- The C `void` type. -/
 syntax "void" : cTypeSpec
+
+/-- The C `char` type. -/
 syntax "char" : cTypeSpec
+
+/-- The C `short` integer type. -/
 syntax "short" : cTypeSpec
+
+/-- The C `int` integer type. -/
 syntax "int" : cTypeSpec
+
+/--
+The C `long` integer type or
+`long` type specifier (e.g., `long long`, `long double`).
+-/
 syntax "long" : cTypeSpec
+
+/--
+The C single precision real floating-point type or
+the single precision floating-point type specifier (e.g., `float _Complex`).
+-/
 syntax "float" : cTypeSpec
+
+/--
+The C double precision real floating-point type or
+the single precision floating-point specifier (e.g., `double _Complex`).
+-/
 syntax "double" : cTypeSpec
+
+/-- The C signed integer type specifier. -/
 syntax "signed" : cTypeSpec
+
+/-- The C unsigned integer type specifier. -/
 syntax "unsigned" : cTypeSpec
 
+/-- The C boolean type (since C99). -/
 syntax "_Bool" : cTypeSpec
+
+/-- The C complex type (since C99). -/
 syntax "_Complex" : cTypeSpec
 
+/-- The C imaginary type (since C99 if the implementation supports it). -/
+syntax "_Imaginary" : cTypeSpec
+
+/-- A user-defined C type. -/
 syntax ident : cTypeSpec
 
 /-!
 ### Atomic
 -/
 
-/-- Encodes an `atomic-type-specifier` of the C grammar. -/
-syntax (name := atomicSpec) "_Atomic" "(" type ")" : cTypeSpec
+/-- An `atomic-type-specifier` of the C grammar. -/
+syntax atomicSpec := "_Atomic" "(" type ")"
+attribute [cTypeSpec_parser] atomicSpec
 
 /-!
 ### Aggregates
@@ -362,120 +650,186 @@ syntax (name := atomicSpec) "_Atomic" "(" type ")" : cTypeSpec
 Collective encodes the `struct-or-union-specifier` of the C grammar.
 -/
 
+/--
+A C [bit field][1]. Defines the explicit width, in bits, of a member.
+
+[1]: https://en.cppreference.com/w/c/language/bit_field
+-/
 syntax aggrDeclBits := " : " constExpr
 
-/-- Encodes a `struct-declarator` of the C grammar. -/
+/-- A `struct-declarator` of the C grammar. -/
 syntax aggrDeclarator := aggrDeclBits <|> declarator optional(aggrDeclBits)
 
-/-- Encodes a `struct-declaration` of the C grammar. -/
-syntax aggrDeclaration := cSpec+ aggrDeclarator,* ";"
+/-- A `struct-declaration` of the C grammar. -/
+syntax aggrDeclaration :=
+  -- See `declaration` as to why the lookahead is needed.
+  (atomic(lookahead(cSpec (cSpec <|> aggrDeclarator <|> ";"))) cSpec)+
+  aggrDeclarator,* ";"
 
-syntax aggrSigDef := "{" aggrDeclaration* "}"
-syntax aggrSig := aggrSigDef <|> ident optional(aggrSigDef)
+syntax aggrDef := "{" aggrDeclaration* "}"
+syntax aggrSig := aggrDef <|> ident optional(aggrDef)
 
-syntax (name := structSpec) "struct " aggrSig : cTypeSpec
-syntax (name := unionSpec) "union " aggrSig : cTypeSpec
+/-- A C [struct](https://en.cppreference.com/w/c/language/struct) declaration. -/
+syntax structSpec := "struct " aggrSig
+attribute [cTypeSpec_parser] structSpec
+
+/-- A C [union](https://en.cppreference.com/w/c/language/union) declaration. -/
+syntax unionSpec := "union " aggrSig
+attribute [cTypeSpec_parser] unionSpec
 
 /-!
 ### Enums
 -/
 
-/-- Encodes an `enumerator` of the C grammar. -/
+/-- An [`enumerator`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
 syntax enumerator := ident optional(" = " constExpr)
 
-syntax enumSigDef := "{" enumerator,+ "}"
-syntax enumSig := enumSigDef <|> ident optional(enumSigDef)
+syntax enumDef := "{" enumerator,+ "}"
+syntax enumSig := enumDef <|> ident optional(enumDef)
 
-/-- Encodes an `enum-specifier` of the C grammar. -/
-syntax (name := enumSpec) "enum " enumSig : cTypeSpec
+/-- An [`enum-specifier`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
+syntax enumSpec := "enum " enumSig
+attribute [cTypeSpec_parser] enumSpec
 
 /-!
 ### Alignment
 -/
 
-/-- Encodes a `alignment-specifier` of the C grammar. -/
-syntax (name := alignSpec) "_Alignas" "(" (type <|> constExpr) ")" : cSpec
+/-- An `alignment-specifier` of the C grammar. -/
+syntax alignSpec := "_Alignas" "(" (type <|> constExpr) ")"
+attribute [cSpec_parser] alignSpec
 
 --------------------------------------------------------------------------------
 /-! ## Statements                                                             -/
 --------------------------------------------------------------------------------
 
--- Encodes a `statement` of the C grammar.
+/-- A [`statement`](https://en.cppreference.com/w/c/language/statements) of the C grammar. -/
 declare_syntax_cat cStmt (behavior := symbol)
 
 /-!
 ### Jump Statements
 
-Collectively encode a `jump-statement` of the C grammar.
+Collectively encode a [`jump-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Jump_statements
 -/
 
-syntax (name := gotoStmt) "goto " ident ";" : cStmt
-syntax (name := continueStmt) "continue" ";" : cStmt
-syntax (name := breakStmt) "break" ";" : cStmt
-syntax (name := returnStmt) "return" cExpr,* ";" : cStmt
+/-- A C [goto](https://en.cppreference.com/w/c/language/goto) statement. -/
+syntax gotoStmt := "goto " ident ";"
+attribute [cStmt_parser] gotoStmt
+
+/-- A C [continue](https://en.cppreference.com/w/c/language/continue) statement. -/
+syntax continueStmt := "continue" ";"
+attribute [cStmt_parser] continueStmt
+
+/-- A C [break](https://en.cppreference.com/w/c/language/break) statement. -/
+syntax breakStmt := "break" ";"
+attribute [cStmt_parser] breakStmt
+
+/-- A C [return](https://en.cppreference.com/w/c/language/return) statement. -/
+syntax returnStmt := "return" cExpr,* ";"
+attribute [cStmt_parser] returnStmt
 
 /-!
-### Compound Statement
+### Compound Statements
 -/
 
-/-- Encodes an `compound-statement` of the C grammar. -/
+/--
+A [`compound-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
+-/
 syntax compStmt := "{" declaration* cStmt* "}"
-syntax compStmt : cStmt
+attribute [cStmt_parser] compStmt
 
 /-!
-### Expression Statement
+### Expression Statements
 -/
 
-/-- Encodes an `expression-statement` of the C grammar. -/
-syntax (name := exprStmt) cExpr,+ ";" : cStmt
+/--
+An [`expression-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Expression_statements
+-/
+syntax exprStmt := cExpr,* ";"
+attribute [cStmt_parser] exprStmt
 
 /-!
 ### Iteration Statements
 
-Collectively encode a `iteration-statement` of the C grammar.
+Collectively encode a [`iteration-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Iteration_statements
 -/
 
-syntax (name := whileStmt) "while " "(" cExpr,+ ")" cStmt : cStmt
-syntax (name := doWhileStmt) "do " cStmt " while " "(" cExpr,+ ")" : cStmt
-syntax (name := forStmt) "for " "(" cExpr,* ";" cExpr,* ";" cExpr,* ")" cStmt : cStmt
+/-- A C [while](https://en.cppreference.com/w/c/language/while) loop. -/
+syntax whileStmt := "while " "(" cExpr,+ ")" cStmt
+attribute [cStmt_parser] whileStmt
+
+/-- A C [do-while](https://en.cppreference.com/w/c/language/do) loop. -/
+syntax doWhileStmt := "do " cStmt " while " "(" cExpr,+ ")"
+attribute [cStmt_parser] doWhileStmt
+
+/-- A C [for](https://en.cppreference.com/w/c/language/for) loop. -/
+syntax forStmt := "for " "(" cExpr,* ";" cExpr,* ";" cExpr,* ")" cStmt
+attribute [cStmt_parser] forStmt
 
 /-!
 ### Selection Statements
 
-Collectively encode a `selection-statement` of the C grammar.
+Collectively encode a [`selection-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Selection_statements
 -/
 
-syntax (name := ifStmt) "if " "(" cExpr,+ ")" cStmt (" else " cStmt)? : cStmt
-syntax (name := switchStmt) "switch " "(" cExpr,+ ")" cStmt : cStmt
+/-- A C [if](https://en.cppreference.com/w/c/language/if) statement. -/
+syntax ifStmt := "if " "(" cExpr,+ ")" cStmt (" else " cStmt)?
+attribute [cStmt_parser] ifStmt
+
+/-- A C [switch](https://en.cppreference.com/w/c/language/switch) statement. -/
+syntax switchStmt := "switch " "(" cExpr,+ ")" cStmt
+attribute [cStmt_parser] switchStmt
 
 /-!
 ### Labeled Statements
 
-Collectively encode a `labeled-statement` of the C grammar.
+Collectively encode a [`labeled-statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements#Labels
 -/
 
-syntax (name := labelStmt) ident ": " cStmt : cStmt
-syntax (name := caseStmt) "case " constExpr ": " cStmt : cStmt
-syntax (name := defaultStmt) "default" ": " cStmt : cStmt
+/-- A target for a C goto statement. -/
+syntax labelStmt := ident ": " cStmt
+attribute [cStmt_parser] labelStmt
+
+/-- A case label in a C switch statement. -/
+syntax caseStmt := "case " constExpr ": " cStmt
+attribute [cStmt_parser] caseStmt
+
+/-- A default label in a C switch statement. -/
+syntax defaultStmt := "default" ": " cStmt
+attribute [cStmt_parser] defaultStmt
 
 --------------------------------------------------------------------------------
 /-! ## Top-Level Commands                                                     -/
 --------------------------------------------------------------------------------
 
+/--
+A top-level C language command
+(i.e., a preprocessor directive or external declaration).
+-/
 declare_syntax_cat cCmd
 
 /-!
 ### External Declarations
 -/
 
--- Encodes an `external-declaration` of the C grammar.
+/-- An `external-declaration` of the C grammar. -/
 declare_syntax_cat cExternDecl
 
-/--
-Encodes a `function` of the C grammar.
-See `declaration` as to why the lookahead is needed.
--/
+/-- A [`function`](https://en.cppreference.com/w/c/language/functions) of the C grammar. -/
 syntax function :=
+  -- See `declaration` as to why the lookahead is needed.
   (atomic(lookahead(cDeclSpec (cDeclSpec <|> declarator))) cDeclSpec)+
   declarator declaration* compStmt
 
@@ -488,33 +842,118 @@ syntax cExternDecl : cCmd
 ### Headers
 -/
 
-/-- Encodes an `h-char-sequence` of the C grammar. -/
+/-- A `h-char-sequence` of the C grammar. -/
 @[run_parser_attribute_hooks] def angleHeaderName := rawUntilCh '>'
 
 syntax angleHeader := "<" angleHeaderName ">"
 
-/-- Encodes a `header-name` of the C grammar. -/
+/-- A `header-name` of the C grammar. -/
 syntax header := str <|> angleHeader
 
 /-!
-### Preprocessor Commands
+### Preprocessor Directives
 -/
 
+namespace PP
+
+/-- A C preprocessor directive. -/
 declare_syntax_cat ppCmd
 
 syntax ppCmd : cCmd
 
-syntax "#include " header : ppCmd
-syntax "#define " ident (noWs "("  ident,*,?  "..."? ")")? line : ppCmd
-syntax "#undef " ident : ppCmd
-syntax "#line " line : ppCmd
-syntax "#error " line : ppCmd
-syntax "#pragma " line : ppCmd
-syntax "#" : ppCmd
+/-- The C preprocessor null directive (does nothing). -/
+syntax nullCmd := "#"
+attribute [ppCmd_parser] nullCmd
 
-syntax "#if " constExpr : ppCmd
-syntax "#ifdef " ident : ppCmd
-syntax "#ifndef " ident : ppCmd
-syntax "#elif " constExpr : ppCmd
-syntax "#else" : ppCmd
-syntax "#endif" : ppCmd
+/-- [Include](https://en.cppreference.com/w/c/preprocessor/include) a C header. -/
+syntax includeCmd := "#include " header
+attribute [ppCmd_parser] includeCmd
+
+/-- Define a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
+syntax defineCmd := "#define " ident (noWs "("  ident,*,?  "..."? ")")? line
+attribute [ppCmd_parser] defineCmd
+
+/-- Remove a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
+syntax undefCmd := "#undef " ident
+attribute [ppCmd_parser] undefCmd
+
+/--
+Change the [current line and file name][1] of the C preprocessor.
+
+[1]: https://en.cppreference.com/w/c/preprocessor/line
+-/
+syntax lineCmd := "#line " line
+attribute [ppCmd_parser] lineCmd
+
+/-- Cause a C preprocessor [error](https://en.cppreference.com/w/c/preprocessor/error). -/
+syntax errorCmd := "#error " line
+attribute [ppCmd_parser] errorCmd
+
+/--
+Cause a C preprocessor [warning][1].
+Standardized in C23, but provided by many compilers much earlier.
+
+[1]: https://en.cppreference.com/w/c/preprocessor/error
+-/
+syntax warningCmd := "#warning " line
+attribute [ppCmd_parser] warningCmd
+
+/-- Perform some [implementation-defined behavior](https://en.cppreference.com/w/c/preprocessor/impl). -/
+syntax pragmaCmd := "#pragma " line
+attribute [ppCmd_parser] undefCmd
+
+/-!
+#### Conditional Inclusion
+
+The preprocessor supports [conditional compilation][1] of parts of source file.
+This behavior is controlled by the directives in this section.
+
+[1]: https://en.cppreference.com/w/c/preprocessor/conditional
+-/
+
+/--
+The start of a C preprocessor conditional inclusion directive.
+
+Process the following branch if the constant expression evaluates
+to a nonzero integer.
+-/
+syntax ifCmd := "#if " constExpr
+attribute [ppCmd_parser] ifCmd
+
+/--
+The start of a C preprocessor conditional inclusion directive.
+
+Process the following branch if the identifier is a defined macro.
+-/
+syntax ifdefCmd := "#ifdef " ident
+attribute [ppCmd_parser] ifdefCmd
+
+/--
+An else-if branch of a C preprocessor conditional inclusion block.
+
+Process the following branch if the identifier is *not* a defined macro.
+-/
+syntax ifndefCmd := "#ifndef " ident
+attribute [ppCmd_parser] ifndefCmd
+
+/--
+An else-if branch of a C preprocessor conditional inclusion block.
+
+Ends the previous branch of a conditional inclusion block and processes the
+following branch if the constant expression evaluates to a nonzero integer.
+-/
+syntax elifCmd := "#elif " constExpr
+attribute [ppCmd_parser] elifCmd
+
+/--
+The else branch of a C preprocessor conditional inclusion block.
+
+Ends the previous branch of a conditional inclusion block and processes
+the following branch if the previous branch was skipped.
+-/
+syntax elseCmd := "#else"
+attribute [ppCmd_parser] elseCmd
+
+/-- The end of a C preprocessor conditional inclusion block. -/
+syntax endifCmd := "#endif"
+attribute [ppCmd_parser] endifCmd
