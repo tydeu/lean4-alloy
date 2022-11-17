@@ -109,19 +109,14 @@ def handleSemanticTokens
       let task ←
         ls.withTextDocument nullUri shim.toString "c" do
           ls.call "textDocument/semanticTokens/full" ⟨⟨nullUri⟩⟩
-      bindTask task fun
-      | .ok shimTokens =>
-        bindTask prev fun
-        | .ok leanTokens =>
-          let shimEntries := decodeShimTokens shimTokens.data
-            shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
-          let leanEntries := decodeLeanTokens leanTokens.data
-          let sortedEntries := shimEntries ++ leanEntries
-            |>.qsort SemanticTokenEntry.ordLt
-          let data := encodeTokenEntries sortedEntries
-          return Task.pure <| .ok {leanTokens with data}
-        | .error e => throw e
-      | .error e => throw <| cRequestError e
+      mergeResponses task prev fun shimTokens leanTokens =>
+        let shimEntries := decodeShimTokens shimTokens.data
+          shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
+        let leanEntries := decodeLeanTokens leanTokens.data
+        let sortedEntries := shimEntries ++ leanEntries
+          |>.qsort SemanticTokenEntry.ordLt
+        let data := encodeTokenEntries sortedEntries
+        return {leanTokens with data}
 
 def handleSemanticTokensFull
 (_ : SemanticTokensParams) (prev : RequestTask SemanticTokens)

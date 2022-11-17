@@ -3,11 +3,11 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Lean.Data.Json
+import Alloy.Util.Server.Methods
 
-open System Lean
+open System Lean Lsp
 
-namespace Alloy.C
+namespace Alloy.Clangd
 
 /-! ## `clangd` Initialization Options -/
 
@@ -29,8 +29,16 @@ instance : FromJson CompilationDatabase where
     o.foldM (init := {}) fun a k v => do
       return a.insert (FilePath.mk k) (← fromJson? v)
 
-structure ClangdInitializationOptions where
+structure InitializationOptions where
   fallbackFlags? : Option (Array String) := none
   compilationDatabasePath? : Option String := none
   compilationDatabaseChanges? : Option CompilationDatabase := none
+  clangdFileStatus? : Option Bool := none
   deriving ToJson, FromJson
+
+structure FileStatus where
+  uri : DocumentUri
+  state : String
+  deriving ToJson, FromJson
+
+instance : LsClientNote "textDocument/clangd.fileStatus" FileStatus := {}

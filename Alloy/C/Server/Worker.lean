@@ -29,17 +29,37 @@ initialize serverMux : IO.Mutex (LOption LsWorker) ← IO.Mutex.new .undef
 
 def initLs? : BaseIO (Option LsWorker) :=
   let act := some <$> do
-    LsWorker.init "clangd" #["--log=error"] <| {
+    /- NOTE: We follow Lean's example and do not limit completion results. -/
+    let args := #["--log=error", "--limit-results=0", "--header-insertion=never"]
+    LsWorker.init "clangd" args {
       capabilities := {
         textDocument? := some {
           hover? := some {
             contentFormat? := some #[.markdown, .plaintext]
+          },
+          declaration? := some {
+            linkSupport? := true
+          }
+          completion? := some {
+            completionItem? := some {
+              documentationFormat? := some #[.markdown, .plaintext]
+              insertReplaceSupport? := true
+            }
+            completionItemKind? := some {
+              valueSet? := some #[
+                .text, .method, .function, .constructor, .field, .variable,
+                .class,  .interface, .module, .property, .unit, .value, .enum,
+                .keyword, .snippet,  .color, .file, .reference, .folder, .enumMember,
+                .constant, .struct, .event,  .operator, .typeParameter
+              ]
+            }
           }
         }
       }
-      initializationOptions? := some <| toJson (α := ClangdInitializationOptions) {
+      initializationOptions? := some <| toJson (α := Clangd.InitializationOptions) {
         -- Add Lean's include directory to `clangd`'s include path
         fallbackFlags? := some #["-I", (← Lean.getBuildDir) / "include" |>.toString]
+        clangdFileStatus? := true
       }
     }
   act.catchExceptions fun e => do

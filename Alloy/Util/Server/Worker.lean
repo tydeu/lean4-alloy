@@ -28,10 +28,15 @@ structure LsState where
   responseMap : RBMap RequestID (Promise (Except (ResponseError Json) Json)) compare := {}
   error? : Option IO.Error := none
 
+/-- A method-handler map. -/
+abbrev NotificationHandlerMap :=
+  RBMap String (Option Json.Structured → BaseIO Unit) compare
+
 /-- A running language server process. -/
 structure LsWorker where
   child : IO.Process.Child pipedStdioConfig
   state : IO.Mutex LsState
+  notificationHandlers : IO.Mutex NotificationHandlerMap
   capabilities : ServerCapabilities := {}
   info? : Option ServerInfo := none
 
@@ -42,8 +47,23 @@ def stdin (self : LsWorker) : IO.FS.Stream :=
   IO.FS.Stream.ofHandle self.child.stdin
 
 /-- Issue the LSP notification `method` with `param`. -/
-def notify (self : LsWorker) (method : String) [LsNote method α] (param : α) : IO Unit := do
+def notify (self : LsWorker) (method : String) [LsServerNote method α] (param : α) : IO Unit := do
   self.stdin.writeLspNotification {method, param}
+
+/-- Add a handler function for a client notifications of `method`. -/
+def addNotificationHandler (self : LsWorker) [FromJson α]
+(method : String) [LsClientNote method α] (handle : α → BaseIO Unit) : BaseIO Unit := do
+  let handle json? := do if let .ok v := fromJson? <| toJson json? then handle v
+  self.notificationHandlers.atomically (·.modify (·.insert method handle))
+
+/-- Execute `act` with the client notification handler `handle` set. -/
+def withNotificationHandler [Monad m] [MonadLiftT BaseIO m] [MonadFinally m]
+(self : LsWorker) (method : String) [LsClientNote method α] (handle : α → BaseIO Unit) (act : m β) : m β := do
+  self.addNotificationHandler method handle
+  try
+    act
+  finally
+    self.notificationHandlers.atomically (m := BaseIO) (·.modify (·.erase method))
 
 /--
 Open the LSP text document specified by `uri`, `text`, `languageId` and `version`,
@@ -70,39 +90,44 @@ def call (self : LsWorker) (method : String) [LsCall method α β] (param : α) 
     return (id, p)
   BaseIO.mapTask (t := p.result) fun r => do
     self.state.atomically (·.modify fun s => {s with responseMap := s.responseMap.erase id})
-    match r with
+    return match r with
     | .ok r =>
       match fromJson? r with
-      | .ok v => return .ok v
+      | .ok v => .ok v
       | .error e =>
-        return .error {
+        .error {
           id, code := .internalError, data? := r
           message := s!"Ill-typed response for request: {e}"
         }
-    | .error e => return .error e
+    | .error e => .error e
 
 /--
 Read all LSP messages from `stream`, completing requests from `state`.
-TODO: Handle non-response messages.
+TODO: Handle request messages.
 -/
-partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex LsState) : BaseIO Unit := do
+partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex LsState)
+(notificationHandlers : IO.Mutex NotificationHandlerMap) : BaseIO Unit := do
   match (← stream.readLspMessage.toBaseIO) with
   | .ok msg =>
     match msg with
+    | .request _id _method _params? =>
+      pure ()
+    | .notification method params? =>
+      if let some handle ← notificationHandlers.atomically (·.get <&> (·.find? method)) then
+        handle params?
     | .response id result =>
       if let some p ← state.atomically (·.get <&> (·.responseMap.find? id)) then
         p.resolve <| .ok result
     | .responseError id code message data? =>
       if let some p ← state.atomically (·.get <&> (·.responseMap.find? id)) then
         p.resolve <| .error {id, code, message, data?}
-    | _ => pure ()
-    readLspMessages stream state
+    readLspMessages stream state notificationHandlers
   | .error e =>
     state.atomically fun ref => do
       let s ← ref.get
       for (id, p) in s.responseMap do
         p.resolve <| .error <| ResponseError.mk id .internalError
-          s!"Language server terminated without responding to request" none
+          s!"Language server terminated without responding to request: {e}" none
       ref.set {s with error? := e}
 
 /--
@@ -115,12 +140,13 @@ partial def pipeLines (i o : IO.FS.Stream) : BaseIO Unit := do
 /-- Spawn the worker process and initialize the language server. -/
 def init (cmd : String) (args : Array String := #[]) (params : InitializeParams) : IO LsWorker := do
   let child ← IO.Process.spawn {cmd, args, toStdioConfig := pipedStdioConfig}
-  let state : IO.Mutex LsState ← IO.Mutex.new {}
-  discard <| BaseIO.asTask <|
-    readLspMessages (IO.FS.Stream.ofHandle child.stdout) state
   discard <| BaseIO.asTask <|
     pipeLines (IO.FS.Stream.ofHandle child.stderr) (← IO.getStderr)
-  let ls : LsWorker := {child, state}
+  let state ← IO.Mutex.new {}
+  let notificationHandlers ← IO.Mutex.new {}
+  discard <| BaseIO.asTask <|
+    readLspMessages (IO.FS.Stream.ofHandle child.stdout) state notificationHandlers
+  let ls : LsWorker := {child, state, notificationHandlers}
   let (⟨capabilities, info?⟩) ← IO.ofExcept
     <| ← IO.wait <| ← ls.call "initialize" params
   ls.notify "initialized" InitializedParams.mk

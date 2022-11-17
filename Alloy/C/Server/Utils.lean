@@ -6,7 +6,7 @@ Authors: Mac Malone
 import Alloy.C.Shim
 import Lean.Server.Requests
 
-open Lean Server JsonRpc
+open Lean Server JsonRpc RequestM
 
 namespace Alloy.C
 
@@ -40,3 +40,13 @@ def cRequestError [ToString α] : ResponseError α → RequestError
 | {id, code, message, data?} =>
   let data := data?.map (s!"\n{·}") |>.getD ""
   .mk code s!"C language server request {id} failed: {message}{data}"
+
+def mergeResponses (shimTask : Task (Except (ResponseError Json) α))
+(leanTask : RequestTask α) (f : α → α → RequestM α) : RequestM (RequestTask α) := do
+  bindTask shimTask fun
+  | .ok shimResult => do
+    bindTask leanTask fun
+    | .ok leanResult =>
+      return Task.pure <| .ok <| ← f shimResult leanResult
+    | .error e => throw e
+  | .error e => throw <| cRequestError e

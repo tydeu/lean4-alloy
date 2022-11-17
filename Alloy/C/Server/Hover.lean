@@ -8,7 +8,7 @@ import Alloy.C.Server.Worker
 import Alloy.C.Server.Utils
 import Alloy.Util.Server
 
-open Lean Server Lsp RequestM
+open Lean Server Lsp RequestM JsonRpc
 
 namespace Alloy.C
 
@@ -17,32 +17,67 @@ def handleLocation (p : Lsp.Position)
  (prev : RequestTask α) (f : Shim → α → α → RequestM α) : RequestM (RequestTask α) := do
   let doc ← readDoc
   let text := doc.meta.text
-  let hoverPos := text.lspPosToUtf8Pos p
-  bindWaitFindSnap doc (·.endPos > hoverPos) (notFoundX := pure prev) fun snap => do
+  let leanHoverPos := text.lspPosToUtf8Pos p
+  bindWaitFindSnap doc (·.endPos > leanHoverPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
-    let some hoverCPos := shim.leanPosToCLsp? hoverPos | return prev
+    let some shimHoverPos := shim.leanPosToCLsp? leanHoverPos | return prev
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
-      let task ←
+      let task ← do
         ls.withTextDocument nullUri shim.toString "c" do
           ls.call method {
             textDocument := ⟨nullUri⟩,
-            position := hoverCPos
+            position := shimHoverPos
           }
-      bindTask task fun
-      | .ok shimResult =>
-        bindTask prev fun
-        | .ok leanResult =>
-          return Task.pure <| .ok <| ← f shim shimResult leanResult
-        | .error e => throw e
-      | .error e => throw <| cRequestError e
+      mergeResponses task prev (f shim)
 
+/-! ## Completion Support -/
+
+def handleCompletion (p : CompletionParams)
+(prev : RequestTask CompletionList) : RequestM (RequestTask CompletionList) := do
+  let doc ← readDoc
+  let text := doc.meta.text
+  let cursorPos := text.lspPosToUtf8Pos p.position
+  bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) fun snap => do
+    let shim := getLocalShim snap.env
+    let prevCharPos := text.source.prev cursorPos
+    let some shimCharPos := shim.leanPosToShim? prevCharPos | return prev
+    let shimCursorPos := shim.text.utf8PosToLspPos <| shim.text.source.next shimCharPos
+    let some ls ← getLs? | return prev
+    withFallbackResponse prev do
+      let task ← do
+        let ready ← IO.Promise.new
+        ls.withNotificationHandler "textDocument/clangd.fileStatus"
+          (fun {state,..} => do if state = "idle" then ready.resolve ()) do
+          ls.withTextDocument nullUri shim.toString "c" do
+            IO.wait ready.result
+            ls.call "textDocument/completion" {
+              textDocument := ⟨nullUri⟩,
+              position := shimCursorPos
+            }
+      mergeResponses task prev fun shimResult leanResult =>
+        let trRange? range := do
+          let startPos ← shim.cLspPosToLeanLsp? range.start text
+          let len := (range.end.character - range.start.character)
+          return ⟨startPos, ⟨startPos.line, startPos.character + len⟩⟩
+        let shimItems := shimResult.items.map fun item =>
+          {item with
+            textEdit? := item.textEdit?.bind fun edit =>
+              return {edit with insert := ← trRange? edit.insert, replace := ← trRange? edit.replace}
+            additionalTextEdits? := item.additionalTextEdits?.bind fun a => a.filterMap fun edit =>
+              return {edit with range := ← trRange? edit.range}
+            -- NOTE: clangd mistakenly marks identifiers as deprecated
+            deprecated? := if item.kind? = some .text then none else item.deprecated?
+          }
+        return {
+          isIncomplete := shimResult.isIncomplete || leanResult.isIncomplete
+          items := shimItems ++ leanResult.items
+        }
 
 /-! ## Hover Support -/
 
-def handleHover
-(p : HoverParams) (prev : RequestTask (Option Hover))
-: RequestM (RequestTask (Option Hover)) := do
+def handleHover (p : HoverParams)
+(prev : RequestTask (Option Hover)) : RequestM (RequestTask (Option Hover)) := do
   have : LsCall "textDocument/hover" TextDocumentPositionParams (Option Hover) := {}
   handleLocation p.position "textDocument/hover" prev fun _ shimHover? leanHover? => do
     let some shimHover := shimHover? | return leanHover?
