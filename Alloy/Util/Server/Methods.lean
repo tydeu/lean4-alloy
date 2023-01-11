@@ -70,10 +70,10 @@ structure CompletionItemLabelDetails where
 structure CompletionItem (Data := Json) where
   label : String
   labelDetails? : Option CompletionItemLabelDetails := none
-  kind? : Option CompletionItemKind
+  kind? : Option CompletionItemKind := none
   tags? : Option (Array CompletionItemTag) := none
-  detail? : Option String
-  documentation? : Option MarkupContent
+  detail? : Option String := none
+  documentation? : Option MarkupContent := none
   deprecated? : Option Bool := none
   preselect? : Option Bool := none
   sortText? : Option String := none

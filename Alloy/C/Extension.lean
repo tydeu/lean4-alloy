@@ -12,11 +12,12 @@ open Lean
 namespace Alloy.C
 
 initialize implExt : MapDeclarationExtension Function ←
-  findOrRegisterPersistentExtension `Alloy.C.impl λ _name => mkMapDeclarationExtension
+  findOrRegisterPersistentExtension `Alloy.C.implExt fun name =>
+    mkMapDeclarationExtension name
 
 initialize shimExt : ModuleEnvExtension Shim ←
-  findOrRegisterPersistentExtension `Alloy.C.shim <|
-    registerModuleEnvExtension (pure {})
+  findOrRegisterPersistentExtension `Alloy.C.shimExt fun name =>
+    registerModuleEnvExtension (pure {}) name
 
 @[inline] def getLocalShim (env : Environment) : Shim :=
   shimExt.getState env

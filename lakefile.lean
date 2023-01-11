@@ -46,5 +46,4 @@ module_facet alloy.c.o mod : FilePath := do
   let oFile := mod.irPath "alloy.c.o"
   let cJob ← fetch <| mod.facet `alloy.c
   let args := #["-I", (← getLeanIncludeDir).toString] ++ mod.leancArgs
-  buildFileAfterDep oFile cJob fun cFile => do
-    compileO s!"{mod.name} alloy" oFile cFile args "cc"
+  buildO s!"{mod.name} alloy" oFile cJob args "cc"
