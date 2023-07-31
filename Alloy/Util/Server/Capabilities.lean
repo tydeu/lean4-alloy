@@ -546,7 +546,7 @@ structure ClientCapabilities (Experimental := Json) where
   experimental? : Option Experimental := none
   deriving Inhabited, ToJson, FromJson
 
-instance [ToJson Exp] : Coe (ClientCapabilities Exp) ClientCapabilities where
+instance [ToJson Exp] : CoeOut (ClientCapabilities Exp) ClientCapabilities where
   coe caps := {caps with experimental? := caps.experimental?.map toJson}
 
 ---
@@ -653,5 +653,5 @@ structure ServerCapabilities (Experimental := Json) where
   experimental? : Option Experimental := none
   deriving Inhabited, ToJson, FromJson
 
-instance [ToJson Exp] : Coe (ServerCapabilities Exp) ServerCapabilities where
+instance [ToJson Exp] : CoeOut (ServerCapabilities Exp) ServerCapabilities where
   coe caps := {caps with experimental? := caps.experimental?.map toJson}

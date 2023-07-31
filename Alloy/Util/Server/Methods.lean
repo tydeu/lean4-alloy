@@ -9,12 +9,14 @@ open Lean Lsp
 
 namespace Alloy
 
+set_option synthInstance.checkSynthOrder false in
 /-- An LSP server to client notification method. -/
 class LsClientNote (method : String) (α : outParam $ Type u)
   extends FromJson α
 
 @[default_instance low] instance : LsClientNote m Json := {}
 
+set_option synthInstance.checkSynthOrder false in
 /-- An LSP client to server notification method. -/
 class LsServerNote (method : String) (α : outParam $ Type u)
   extends ToJson α
@@ -24,6 +26,7 @@ instance : LsServerNote "initialized" InitializedParams := {}
 instance : LsServerNote "textDocument/didOpen" DidOpenTextDocumentParams := {}
 instance : LsServerNote "textDocument/didClose" DidCloseTextDocumentParams := {}
 
+set_option synthInstance.checkSynthOrder false in
 /-- An LSP client to server request/response method. -/
 class LsCall (method : String) (α : outParam $ Type u) (β : outParam $ Type w)
   extends ToJson α, FromJson β

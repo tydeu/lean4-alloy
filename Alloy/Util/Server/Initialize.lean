@@ -21,7 +21,7 @@ structure InitializeParams (InitializationOptions ExperimentalCapabilities := Js
   workspaceFolders? : Option (Array WorkspaceFolder) := none
   deriving Inhabited, ToJson
 
-instance [ToJson Opts] [ToJson Exp] : Coe (InitializeParams Opts Exp) InitializeParams where
+instance [ToJson Opts] [ToJson Exp] : CoeOut (InitializeParams Opts Exp) InitializeParams where
   coe p := {p with
     initializationOptions? := p.initializationOptions?.map toJson
     capabilities := p.capabilities
@@ -57,5 +57,5 @@ structure InitializeResult (ExperimentalCapabilities := Json) where
   serverInfo? : Option ServerInfo := none
   deriving Inhabited, ToJson, FromJson
 
-instance [ToJson Exp] : Coe (InitializeResult  Exp) InitializeResult where
+instance [ToJson Exp] : CoeOut (InitializeResult  Exp) InitializeResult where
   coe r := {r with capabilities := r.capabilities}
