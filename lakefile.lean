@@ -28,13 +28,13 @@ module_facet alloy.c mod : FilePath := do
   let some alloy ← findLeanExe? `alloy
     | error "no alloy executable configuration found in workspace"
   let exeJob ← alloy.exe.fetch
-  let modJob ← mod.leanBin.fetch
+  let modJob ← mod.importBin.fetch
   let cFile := mod.irPath "alloy.c"
   exeJob.bindAsync fun exeFile exeTrace => do
   modJob.bindSync fun _ modTrace => do
     let depTrace := exeTrace.mix modTrace
     let trace ← buildFileUnlessUpToDate cFile depTrace do
-      logInfo s!"Generating {mod.name} alloy"
+      logStep s!"Generating {mod.name} alloy"
       proc {
         cmd := exeFile.toString
         args := #[mod.name.toString, cFile.toString]
