@@ -10,11 +10,14 @@ open Lean Server Lsp
 
 namespace Alloy
 
-def nullUri : DocumentUri :=
+def nullPath : System.FilePath :=
   if System.Platform.isWindows then
-    "file:///nul"
+    "/nul"
   else
-    "file:///dev/null"
+    "/dev/null"
+
+def nullUri : DocumentUri :=
+  s!"file://{nullPath}"
 
 def isNullUri (uri : DocumentUri) : Bool :=
   if System.Platform.isWindows then

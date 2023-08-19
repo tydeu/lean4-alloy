@@ -31,7 +31,11 @@ def initLs? : BaseIO (Option LsWorker) :=
   let act := some <$> do
     /- NOTE: We follow Lean's example and do not limit completion results. -/
     let args := #["--log=error", "--limit-results=0", "--header-insertion=never"]
-    LsWorker.init "clangd" args {
+    let errorFilter (line : String) :=
+      -- HACK: Filter "Trying to remove file from TUScheduler that is not tracked: <file>" errors
+      -- TODO: Actually fix the underlying cause -- `withTextDocument` race conditions
+      line.dropRightWhile (· ≠ ':') |>.endsWith "not tracked:"
+    LsWorker.init "clangd" args (errorFilter := errorFilter) {
       capabilities := {
         textDocument? := some {
           hover? := some {

@@ -132,16 +132,24 @@ partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex LsState)
 
 /--
 Pipe lines from the input stream `i` to the output stream `o`
-until an error is encountered.
+until the input stream `i` closes / encounters an error.
+Filters out lines for which `filter` returns `true`.
 -/
-partial def pipeLines (i o : IO.FS.Stream) : BaseIO Unit := do
-  if let .ok _ := ← (i.getLine >>= o.putStr).toBaseIO then pipeLines i o
+partial def pipeLines (i o : IO.FS.Stream) (filter : String → Bool := fun _ => false) : BaseIO Unit := do
+  let pipeLine := do
+    let line ← i.getLine
+    unless filter line do
+      o.putStr line
+  if let .ok _ ← pipeLine.toBaseIO then pipeLines i o filter
 
-/-- Spawn the worker process and initialize the language server. -/
-def init (cmd : String) (args : Array String := #[]) (params : InitializeParams) : IO LsWorker := do
+/--
+Spawn the worker process and initialize the language server.
+Filters out error lines for which `errorFilter` returns `true`.
+-/
+def init (cmd : String) (args : Array String := #[]) (params : InitializeParams) (errorFilter : String → Bool := fun _ => false): IO LsWorker := do
   let child ← IO.Process.spawn {cmd, args, toStdioConfig := pipedStdioConfig}
   discard <| BaseIO.asTask <|
-    pipeLines (IO.FS.Stream.ofHandle child.stderr) (← IO.getStderr)
+    pipeLines (IO.FS.Stream.ofHandle child.stderr) (← IO.getStderr) errorFilter
   let state ← IO.Mutex.new {}
   let notificationHandlers ← IO.Mutex.new {}
   discard <| BaseIO.asTask <|
