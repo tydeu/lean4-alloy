@@ -24,9 +24,9 @@ namespace Alloy.C
 ## Basic Abstractions
 
 We need to forward declare these in order to construct the syntax `type`
-which is used by the cast expressions (`castExpr`).
+which is used by the cast expression syntax (`castExpr`).
 
-A good reference on C representation of types is:
+A good reference on the C representation of types is:
 https://blog.robertelder.org/building-a-c-compiler-type-system-a-canonical-type-representation/
 -/
 
@@ -59,7 +59,7 @@ declare_syntax_cat cDirectAbsDeclarator (behavior := symbol)
 syntax declarator := «pointer»? cDirectDeclarator
 
 /-- An `abstract-declarator` of the C grammar. -/
-syntax absDeclarator := pointer optional(cDirectAbsDeclarator) <|> cDirectAbsDeclarator
+syntax absDeclarator := (pointer «cDirectAbsDeclarator»?) <|> cDirectAbsDeclarator
 
 /-- A [`type`](https://en.cppreference.com/w/c/language/type) of the C grammar. -/
 syntax type := cSpec+ optional(absDeclarator)
@@ -148,7 +148,7 @@ syntax:max "(" type ")" "{" initializerElem,*,? "}" : cExpr
 syntax:max "(" cExpr ")" : cExpr
 
 /-- A `generic-association` of the C grammar. -/
-syntax genericAssoc := ident ":" cExpr <|> "default" ":" cExpr
+syntax genericAssoc := (ident ":" cExpr) <|> ("default" ":" cExpr)
 
 /-- A `generic-selection` expression of the C grammar (since C11). -/
 syntax:max "_Generic" "(" cExpr "," genericAssoc,+ ")" : cExpr
@@ -658,7 +658,7 @@ A C [bit field][1]. Defines the explicit width, in bits, of a member.
 syntax aggrDeclBits := " : " constExpr
 
 /-- A `struct-declarator` of the C grammar. -/
-syntax aggrDeclarator := aggrDeclBits <|> declarator optional(aggrDeclBits)
+syntax aggrDeclarator := aggrDeclBits <|> (declarator optional(aggrDeclBits))
 
 /-- A `struct-declaration` of the C grammar. -/
 syntax aggrDeclaration :=
@@ -667,7 +667,7 @@ syntax aggrDeclaration :=
   aggrDeclarator,* ";"
 
 syntax aggrDef := "{" aggrDeclaration* "}"
-syntax aggrSig := aggrDef <|> ident optional(aggrDef)
+syntax aggrSig := aggrDef <|> (ident optional(aggrDef))
 
 /-- A C [struct](https://en.cppreference.com/w/c/language/struct) declaration. -/
 syntax structSpec := "struct " aggrSig
@@ -685,7 +685,7 @@ attribute [cTypeSpec_parser] unionSpec
 syntax enumerator := ident optional(" = " constExpr)
 
 syntax enumDef := "{" enumerator,+ "}"
-syntax enumSig := enumDef <|> ident optional(enumDef)
+syntax enumSig := enumDef <|> (ident optional(enumDef))
 
 /-- An [`enum-specifier`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
 syntax enumSpec := "enum " enumSig
