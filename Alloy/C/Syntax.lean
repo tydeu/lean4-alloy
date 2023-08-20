@@ -21,7 +21,7 @@ abbrev DeclSpec := TSyntax `cDeclSpec
 abbrev Expr := TSyntax `cExpr
 abbrev StorageClassSpec := TSyntax `cStorageClassSpec
 abbrev FunSpec := TSyntax `cFunSpec
-abbrev DirAbsDtor := TSyntax `cDirAbsDe
+abbrev DirAbsDtor := TSyntax `cDirAbsDtor
 abbrev DirDtor := TSyntax `cDirDtor
 abbrev Stmt := TSyntax `cStmt
 
@@ -33,34 +33,31 @@ abbrev Declaration := TSyntax ``declaration
 abbrev CompStmt := TSyntax ``compStmt
 
 instance : Coe Ident TypeSpec where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cTypeSpec| $x:ident)
 
 instance : Coe TypeSpec DeclSpec where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cDeclSpec| $x:cTypeSpec)
 
 instance : Coe StorageClassSpec DeclSpec where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cDeclSpec| $x:cStorageClassSpec)
 
 instance : Coe FunSpec DeclSpec where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cDeclSpec| $x:cFunSpec)
 
 instance : Coe CompStmt Stmt where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cStmt| $x:compStmt)
 
 instance : Coe Function ExternDecl where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cExternDecl| $x:function)
 
 instance : Coe Declaration ExternDecl where
-  coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cExternDecl| $x:declaration)
 
 instance : Coe ExternDecl Cmd where
-   coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cCmd| $x:cExternDecl)
 
 instance : Coe PPCmd Cmd where
-   coe s := ⟨s.raw⟩
-
-instance : Coe CompStmt Stmt where
-   coe s := ⟨s.raw⟩
+  coe x := Unhygienic.run `(cCmd| $x:ppCmd)
 
 /-!
 ## Other Utilities
@@ -68,4 +65,4 @@ instance : Coe CompStmt Stmt where
 
 def packBody : Stmt → CompStmt
 | `(cStmt| $x:compStmt) => x
-| stmt => Unhygienic.run do `(compStmt| {$stmt:cStmt})
+| stmt => Unhygienic.run `(compStmt| {$stmt:cStmt})
