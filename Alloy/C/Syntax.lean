@@ -49,6 +49,8 @@ abbrev Declarator := TSyntax ``declarator
 abbrev AbsDeclarator := TSyntax ``absDeclarator
 abbrev AggrDeclarator := TSyntax ``aggrDeclarator
 abbrev AggrSig := TSyntax ``aggrSig
+abbrev Enumerator := TSyntax ``enumerator
+abbrev EnumSig := TSyntax ``enumSig
 abbrev Declaration := TSyntax ``declaration
 abbrev CompStmt := TSyntax ``compStmt
 
@@ -75,6 +77,12 @@ instance : Coe Expr Initializer where
 instance : Coe Expr Index where
   coe x := Unhygienic.run `(cIndex| $x:cExpr)
 
+instance : Coe Pointer AbsDeclarator where
+  coe x := Unhygienic.run `(absDeclarator| $x:pointer)
+
+instance : Coe DirectAbsDeclarator AbsDeclarator where
+  coe x := Unhygienic.run `(absDeclarator| $x:cDirectAbsDeclarator)
+
 instance : Coe Ident DirectDeclarator where
   coe x := Unhygienic.run `(cDirectDeclarator| $x:ident)
 
@@ -84,14 +92,14 @@ instance : Coe DirectDeclarator Declarator where
 instance : Coe Declarator AggrDeclarator where
   coe x := Unhygienic.run `(aggrDeclarator| $x:declarator)
 
-instance : Coe Pointer AbsDeclarator where
-  coe x := Unhygienic.run `(absDeclarator| $x:pointer)
-
-instance : Coe DirectAbsDeclarator AbsDeclarator where
-  coe x := Unhygienic.run `(absDeclarator| $x:cDirectAbsDeclarator)
-
 instance : Coe Ident AggrSig where
   coe x := Unhygienic.run `(aggrSig| $x:ident)
+
+instance : Coe Ident Enumerator where
+  coe x := Unhygienic.run `(enumerator| $x:ident)
+
+instance : Coe Ident EnumSig where
+  coe x := Unhygienic.run `(enumSig| $x:ident)
 
 instance : Coe Ident TypeSpec where
   coe x := Unhygienic.run `(cTypeSpec| $x:ident)
