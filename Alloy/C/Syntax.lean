@@ -53,6 +53,7 @@ abbrev Enumerator := TSyntax ``enumerator
 abbrev EnumSig := TSyntax ``enumSig
 abbrev Declaration := TSyntax ``declaration
 abbrev CompStmt := TSyntax ``compStmt
+abbrev ConstExpr := TSyntax ``constExpr
 
 /-! ### Coercions -/
 
@@ -70,6 +71,9 @@ instance : Coe StrLit Expr where
 
 instance : Coe CharLit Expr where
   coe x := Unhygienic.run `(cExpr| $x:char)
+
+instance : Coe Expr ConstExpr where
+  coe x := Unhygienic.run `(constExpr| $x:cExpr)
 
 instance : Coe Expr Initializer where
   coe x := Unhygienic.run `(cInitializer| $x:cExpr)
