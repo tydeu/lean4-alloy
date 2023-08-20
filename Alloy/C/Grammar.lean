@@ -226,7 +226,7 @@ The result of the expression is the decremented value of the operand.
 syntax:500 "--" cExpr:500 : cExpr
 
 /--
-A C [address-of][1] expression.
+A C [`address-of`][1] expression.
 
 [1]: https://en.cppreference.com/w/c/language/operator_member_access#Address_of
 -/
@@ -268,21 +268,23 @@ A C [logical NOT][1] expression.
 syntax:500 "!" cExpr:100 : cExpr
 
 /--
-A C [sizeof][1] expression.
-Returns the size, in bytes, of the object representation of the type of the
-provided expression.
+A C [`sizeof`][1] expression.
+Returns the size, in bytes, of the [object representation][2]
+of the provided type or the type of the provided expression.
 
 [1]: https://en.cppreference.com/w/c/language/sizeof
+[2]: https://en.cppreference.com/w/c/language/object#Object_representation
 -/
-syntax:500 "sizeof" cExpr:500 : cExpr
+syntax:500 "sizeof" (("(" type ")") <|> cExpr:500) : cExpr
 
 /--
-A C [sizeof][1] expression.
-Returns the size, in bytes, of the object representation of the provided type.
+A C [`_Alignof`][1] expression.
+Returns the [alignment requirement][2] of the provided type.
 
-[1]: https://en.cppreference.com/w/c/language/sizeof
+[1]: https://en.cppreference.com/w/c/language/_Alignof
+[2]: https://en.cppreference.com/w/c/language/object#Alignment
 -/
-syntax:500 "sizeof" "(" cSpec ")" &" _Alignof" "(" cSpec ")" : cExpr
+syntax:500 "_Alignof" "(" type ")" : cExpr
 
 
 /-!
