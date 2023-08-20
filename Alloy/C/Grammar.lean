@@ -50,16 +50,16 @@ syntax cTypeQ : cSpec
 syntax pointer := (" * " cTypeQ*)+
 
 /-- A `direct-declarator` of the C grammar. -/
-declare_syntax_cat cDirDtor (behavior := symbol)
+declare_syntax_cat cDirectDeclarator (behavior := symbol)
 
 /-- A `direct-abstract-declarator` of the C grammar. -/
-declare_syntax_cat cDirAbsDtor (behavior := symbol)
+declare_syntax_cat cDirectAbsDeclarator (behavior := symbol)
 
 /-- A `declarator` of the C grammar. -/
-syntax declarator := «pointer»? cDirDtor
+syntax declarator := «pointer»? cDirectDeclarator
 
 /-- An `abstract-declarator` of the C grammar. -/
-syntax absDeclarator := pointer optional(cDirAbsDtor) <|> cDirAbsDtor
+syntax absDeclarator := pointer optional(cDirectAbsDeclarator) <|> cDirectAbsDeclarator
 
 /-- A [`type`](https://en.cppreference.com/w/c/language/type) of the C grammar. -/
 syntax type := cSpec+ optional(absDeclarator)
@@ -525,17 +525,17 @@ syntax paramDecl := cDeclSpec+ (declarator <|> absDeclarator)?
 syntax params := paramDecl,+,? "..."?
 
 /-- The name of a declaration. -/
-syntax:max ident : cDirDtor
+syntax:max ident : cDirectDeclarator
 
-syntax:max "(" declarator ")" : cDirDtor
-syntax:arg cDirDtor:arg "[" optional(cIndex)"]" : cDirDtor
-syntax:arg cDirDtor:arg "(" params ")" : cDirDtor
-syntax:arg cDirDtor:arg "(" ident* ")" : cDirDtor
+syntax:max "(" declarator ")" : cDirectDeclarator
+syntax:arg cDirectDeclarator:arg "[" optional(cIndex)"]" : cDirectDeclarator
+syntax:arg cDirectDeclarator:arg "(" params ")" : cDirectDeclarator
+syntax:arg cDirectDeclarator:arg "(" ident* ")" : cDirectDeclarator
 
-syntax:max "(" absDeclarator ")" : cDirAbsDtor
-syntax:max "(" params ")" : cDirAbsDtor
-syntax:arg cDirAbsDtor:arg "[" optional(cIndex) "]" : cDirAbsDtor
-syntax:arg cDirAbsDtor:arg "(" optional(params) ")" : cDirAbsDtor
+syntax:max "(" absDeclarator ")" : cDirectAbsDeclarator
+syntax:max "(" params ")" : cDirectAbsDeclarator
+syntax:arg cDirectAbsDeclarator:arg "[" optional(cIndex) "]" : cDirectAbsDeclarator
+syntax:arg cDirectAbsDeclarator:arg "(" optional(params) ")" : cDirectAbsDeclarator
 
 
 /-!

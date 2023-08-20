@@ -21,8 +21,8 @@ abbrev DeclSpec := TSyntax `cDeclSpec
 abbrev Expr := TSyntax `cExpr
 abbrev StorageClassSpec := TSyntax `cStorageClassSpec
 abbrev FunSpec := TSyntax `cFunSpec
-abbrev DirAbsDtor := TSyntax `cDirAbsDtor
-abbrev DirDtor := TSyntax `cDirDtor
+abbrev DirectAbsDeclarator := TSyntax `cDirectAbsDeclarator
+abbrev DirectDeclarator := TSyntax `cDirectDeclarator
 abbrev Stmt := TSyntax `cStmt
 
 abbrev Pointer := TSyntax ``pointer
