@@ -275,7 +275,7 @@ of the provided type or the type of the provided expression.
 [1]: https://en.cppreference.com/w/c/language/sizeof
 [2]: https://en.cppreference.com/w/c/language/object#Object_representation
 -/
-syntax:500 "sizeof" (("(" type ")") <|> cExpr:500) : cExpr
+syntax:500 "sizeof" (atomic("(" type ")") <|> cExpr:500) : cExpr
 
 /--
 A C [`_Alignof`][1] expression.
