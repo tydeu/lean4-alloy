@@ -741,7 +741,7 @@ A [`compound-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
 -/
-syntax compStmt := "{" declaration* cStmt* "}"
+syntax compStmt := "{" (declaration <|> cStmt)* "}"
 attribute [cStmt_parser] compStmt
 
 /-!
@@ -852,9 +852,9 @@ syntax angleHeader := "<" angleHeaderName ">"
 /-- A `header-name` of the C grammar. -/
 syntax header := str <|> angleHeader
 
-/-!
-### Preprocessor Directives
--/
+--------------------------------------------------------------------------------
+/-! ## Preprocessor Directives                                                -/
+--------------------------------------------------------------------------------
 
 namespace PP
 
@@ -862,6 +862,7 @@ namespace PP
 declare_syntax_cat ppCmd
 
 syntax ppCmd : cCmd
+syntax ppCmd : cStmt
 
 /-- The C preprocessor null directive (does nothing). -/
 syntax nullCmd := "#"
