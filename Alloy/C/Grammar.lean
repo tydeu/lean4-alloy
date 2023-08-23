@@ -903,7 +903,7 @@ attribute [ppCmd_parser] warningCmd
 
 /-- Perform some [implementation-defined behavior](https://en.cppreference.com/w/c/preprocessor/impl). -/
 syntax pragmaCmd := "#pragma " line
-attribute [ppCmd_parser] undefCmd
+attribute [ppCmd_parser] pragmaCmd
 
 /-!
 #### Conditional Inclusion

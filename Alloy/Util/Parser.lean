@@ -25,7 +25,7 @@ def raw (fn : ParserFn) (trailingWs := false) : Parser where
   rawUntil (fun d => d == c) trailingWs
 
 @[inline] def lineNoAntiquot : Parser :=
-  rawUntilCh '\n'
+  rawUntilCh '\n' true
 
 @[run_parser_attribute_hooks, inline] def line : Parser :=
   withAntiquot (mkAntiquot "line" `line) lineNoAntiquot
