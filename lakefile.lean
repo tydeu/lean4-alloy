@@ -25,10 +25,8 @@ lean_exe alloy {
 --------------------------------------------------------------------------------
 
 module_facet alloy.c mod : FilePath := do
-  let some alloy ← findLeanExe? `alloy
-    | error "no alloy executable configuration found in workspace"
-  let exeJob ← alloy.exe.fetch
-  let modJob ← mod.importBin.fetch
+  let exeJob ← alloy.fetch
+  let modJob ← mod.olean.fetch
   let cFile := mod.irPath "alloy.c"
   exeJob.bindAsync fun exeFile exeTrace => do
   modJob.bindSync fun _ modTrace => do
