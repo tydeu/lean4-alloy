@@ -8,30 +8,11 @@ import Lean.Environment
 open Lean
 namespace Alloy
 
-/-- Unsafe implementation of `findOrRegisterPersistentExtension`. -/
-unsafe def unsafeFindOrRegisterPersistentExtension {α β σ : Type} [Inhabited σ]
-(name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ) := do
-  let pExts ← persistentEnvExtensionsRef.get
-  match pExts.find? (·.name == name) with
-  | some ext => unsafeCast ext
-  | none => register name
-
-/--
-Find the already registered persistent extension with the given name
-or register one using the provided function.
-
-We need this because otherwise persistent extensions will encounter a clash
-between their precompiled (via `precompileModules`) version loaded as a shared
-library (via `--load-dynlib`) and their interpreted version imported via olean.
--/
-@[implemented_by unsafeFindOrRegisterPersistentExtension]
-opaque findOrRegisterPersistentExtension {α β σ : Type} [Inhabited σ]
-(name : Name) (register : Name → IO (PersistentEnvExtension α β σ)) : IO (PersistentEnvExtension α β σ)
-
 /-- Persistent environment extension for storing a single serializable value per module. -/
 def ModuleEnvExtension (σ : Type) := PersistentEnvExtension σ σ σ
 
-def registerModuleEnvExtension [Inhabited σ] (mkInitial : IO σ) (name : Name) : IO (ModuleEnvExtension σ) :=
+def registerModuleEnvExtension [Inhabited σ] (mkInitial : IO σ)
+(name : Name := by exact decl_name%) : IO (ModuleEnvExtension σ) :=
   registerPersistentEnvExtension {
     name            := name
     mkInitial       := pure default
