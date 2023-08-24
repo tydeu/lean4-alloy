@@ -1,8 +1,14 @@
-set -ex
+#!/usr/bin/env bash
+set -exo pipefail
+
 ${LAKE:-lake} build
-cd examples/my_add
+
+pushd examples/my_add
 ./test.sh
-cd ../..
-cd examples/S
+popd
+
+pushd examples/S
 ./test.sh
-cd ../..
+popd
+
+${LAKE:-lake} env lean tests/define.lean

@@ -7,22 +7,35 @@ import Alloy.C.IR
 import Alloy.C.Shim
 import Alloy.Util.Syntax
 import Alloy.Util.Binder
+import Alloy.Util.Command
 import Lean.Compiler.NameMangling
-import Lean.Elab.ElabRules
 
 namespace Alloy.C
 open Lean Parser Elab Command
 
 syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
 
-/-- A section of C code to include verbatim in the module's shim. -/
-scoped elab (name := sectionCmd)
-"alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
+/-- Reprint a command and add it verbatim to the module's C shim. -/
+def addCommandToShim [Monad m] [MonadEnv m] [MonadError m] (cmd : Syntax) : m Unit := do
   let env ← getEnv
   let shim := shimExt.getState env
-  match shim.appendCmds? cmds with
-  | .ok shim => setEnv <| shimExt.setState env shim
-  | .error cmd => throwErrorAt cmd "command is ill-formed (cannot be reprinted)"
+  if let some shim := shim.pushCmd? cmd then
+    setEnv <| shimExt.setState env shim
+  else
+    throwError s!"command '{cmd.getKind}' could not reprinted and add raw to the C shim"
+
+/--
+A section of C code to elaborate.
+If no custom elaboration function is defined for a C command,
+the command is reprinted and added verbatim in the module's shim.
+-/
+scoped elab (name := sectionCmd)
+"alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
+  cmds.forM fun cmd => elabEachCommand cmd fun cmd => do
+    let s ← get
+    match commandElabAttribute.getEntries s.env cmd.getKind with
+    | [] => addCommandToShim cmd
+    | elabFns => elabCommandUsing s cmd elabFns
 
 /--
 Include the provided C header files in the module's shim.

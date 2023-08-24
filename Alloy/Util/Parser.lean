@@ -27,5 +27,19 @@ def raw (fn : ParserFn) (trailingWs := false) : Parser where
 @[inline] def lineNoAntiquot : Parser :=
   rawUntilCh '\n' true
 
+/-- Like `Lean.Parser.withAntiquot`, but with an `acceptLhs` option. -/
+def withAntiquot (antiquotP p : Parser) (acceptLhs := false) : Parser := {
+  fn := withAntiquotFn antiquotP.fn p.fn acceptLhs
+  info := orelseInfo antiquotP.info p.info
+}
+
+@[combinator_formatter withAntiquot]
+def withAntiquot.formatter :=
+  Formatter.withAntiquot.formatter
+
+@[combinator_parenthesizer withAntiquot]
+def withAntiquot.parenthesizer :=
+  Parenthesizer.withAntiquot.parenthesizer
+
 @[run_parser_attribute_hooks, inline] def line : Parser :=
-  withAntiquot (mkAntiquot "line" `line) lineNoAntiquot
+  withAntiquot (mkAntiquot "line" `line (isPseudoKind := true)) lineNoAntiquot true
