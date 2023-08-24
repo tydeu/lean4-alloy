@@ -3,9 +3,8 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Alloy.C.Extension
+import Alloy.C.Shim
 import Alloy.C.Server.Worker
-import Alloy.C.Server.Utils
 import Alloy.Util.Server
 
 open Lean Server Lsp RequestM

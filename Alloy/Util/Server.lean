@@ -5,6 +5,7 @@ Authors: Mac Malone
 -/
 import Lean.Server.Requests
 import Alloy.Util.Server.Worker
+import Alloy.Util.Server.Extra
 
 open Lean Server Lsp
 

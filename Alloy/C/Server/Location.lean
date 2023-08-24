@@ -3,9 +3,8 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Alloy.C.Extension
+import Alloy.C.Shim
 import Alloy.C.Server.Worker
-import Alloy.C.Server.Utils
 import Alloy.Util.Server
 
 open Lean Server Lsp RequestM JsonRpc
@@ -20,7 +19,7 @@ def handleLocation (p : Lsp.Position)
   let leanHoverPos := text.lspPosToUtf8Pos p
   bindWaitFindSnap doc (·.endPos > leanHoverPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
-    let some shimHoverPos := shim.leanPosToCLsp? leanHoverPos | return prev
+    let some shimHoverPos := shim.leanPosToLsp? leanHoverPos | return prev
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
@@ -59,7 +58,7 @@ def handleCompletion (p : CompletionParams)
             }
       mergeResponses task prev fun shimResult leanResult =>
         let trRange? range := do
-          let startPos ← shim.cLspPosToLeanLsp? range.start text
+          let startPos ← shim.lspPosToLeanLsp? range.start text
           let len := (range.end.character - range.start.character)
           return ⟨startPos, ⟨startPos.line, startPos.character + len⟩⟩
         let shimItems := shimResult.items.map fun item =>
@@ -100,7 +99,7 @@ def handleGoto
     let originSelectionRange? := leanLinks.findSome? (·.originSelectionRange?)
     let shimLinks := shimLinks.filterMap fun link =>
       if isNullUri link.targetUri then
-        if let some range := shim.cLspRangeToLeanLsp? link.targetRange text then
+        if let some range := shim.lspRangeToLeanLsp? link.targetRange text then
           some {link with
             originSelectionRange?
             targetUri := p.textDocument.uri

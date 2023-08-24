@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Alloy.C.IR
-import Alloy.C.Extension
+import Alloy.C.Shim
 import Alloy.Util.Syntax
 import Alloy.Util.Binder
 import Lean.Compiler.NameMangling
@@ -110,7 +110,6 @@ scoped elab (name := externDecl) doc?:«docComment»?
       )
       let cmd ← `(alloy c section $fn:function end)
       withMacroExpansion (← getRef) cmd <| elabCommand cmd
-      modifyEnv fun env => implExt.insert env name fn
     else
       throwError "failed to find Lean IR definition"
   else
