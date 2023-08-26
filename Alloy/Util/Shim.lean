@@ -15,6 +15,9 @@ nodes are tagged with synthetic `SourceInfo` detailing its span within the shim.
 -/
 abbrev ShimSyntax := Syntax
 
+/-- The text of some shim syntax combined with tree representation. -/
+abbrev ShimElem := String × ShimSyntax
+
 /-- Converts all non-whitespace characters of the string to whitespace. -/
 def toWhitespace (str : String) : String :=
   str.map fun c => if c.isWhitespace then c else ' '
@@ -29,7 +32,7 @@ def reprintLeaf (val : String) : SourceInfo → String
 Like `Lean.Syntax.reprint`, but transforms comments into whitespace and
 tags nodes with `SourceInfo` noting their position in the reprinted code.
 -/
-partial def reprint (stx : Syntax) (startPos : String.Pos := 0) : Option (String × ShimSyntax) := do
+partial def reprint (stx : Syntax) (startPos : String.Pos := 0) : Option ShimElem := do
   match stx with
   | .atom info val =>
     return (reprintLeaf val info, stx)
@@ -45,7 +48,7 @@ partial def reprint (stx : Syntax) (startPos : String.Pos := 0) : Option (String
         let (s', arg') ← reprint arg startPos
         args' := args'.push arg'
         guard (s0 == s')
-      s := s ++ s0
+      s := s0
     else
       for arg in args do
         let pos := startPos + s.endPos
@@ -157,13 +160,20 @@ instance : ToString Shim := ⟨Shim.toString⟩
 Add a command to the shim.
 Fails if the command could not be reprinted.
 -/
-def pushCmd? (cmd : Syntax) (self : Shim) : Option Shim := do
-  let (code, cmd) ← reprint cmd self.text.source.endPos
+def addCmd (code : String) (stx : Syntax) (self : Shim) : Shim :=
   let code := self.text.source ++ code ++ "\n"
-  return ⟨self.cmds.push cmd, FileMap.ofString code⟩
+  ⟨self.cmds.push stx, FileMap.ofString code⟩
 
 /--
-Appends an `Array` of commands to the shim.
+Reprint a command and add it to the shim.
+Fails if the command could not be reprinted.
+-/
+def pushCmd? (stx : Syntax) (self : Shim) : Option Shim := do
+  let (code, stx) ← reprint stx self.text.source.endPos
+  self.addCmd code stx
+
+/--
+Reprint and append an `Array` of commands to the shim.
 Fails if any of the commands could not be reprinted and throws the command.
 -/
 def appendCmds? (cmds : Array Syntax) (self : Shim) : Except Syntax Shim := do

@@ -11,4 +11,4 @@ pushd examples/S
 ./test.sh
 popd
 
-${LAKE:-lake} env lean tests/define.lean
+${LAKE:-lake} env lean tests/elab.lean

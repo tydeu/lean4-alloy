@@ -7,7 +7,7 @@ import Alloy.C.IR
 import Alloy.C.Shim
 import Alloy.Util.Syntax
 import Alloy.Util.Binder
-import Alloy.Util.Command
+import Alloy.Util.ShimElab
 import Lean.Compiler.NameMangling
 
 namespace Alloy.C
@@ -24,18 +24,37 @@ def addCommandToShim [Monad m] [MonadEnv m] [MonadError m] (cmd : Syntax) : m Un
   else
     throwError s!"command '{cmd.getKind}' could not reprinted and add raw to the C shim"
 
+/-- Elaborate some shim code at the end of the C shim. -/
+@[inline] def elabShimSyntax (stx : Syntax) : ShimElabM ShimElem := do
+  let startPos := shimExt.getState (← getEnv) |>.text.source.endPos
+  elabShimSyntaxCore stx startPos
+
+/--
+Elaborate a C command. The steps are as follows:
+1. Unpack null nodes and expand macros.
+2. Attempt to find and apply a standard Lean `command` elaborator.
+3. If none exists, visit each node of the the syntax and try to find an
+Alloy elaborator for the kind to elaborate the node into a `ShimElem`, which
+is then added to the shim.
+4. For nodes lacking any elaborator or raw tokens, attempt to reprint
+the syntax (via `Alloy.reprint`) and add it verbatim to the shim.
+-/
+def elabShimCommand (cmd : Syntax) : CommandElabM Unit :=
+  elabEachCommand cmd fun cmd => do
+  let elabFns := commandElabAttribute.getEntries (← getEnv) cmd.getKind
+  unless (← elabCommandUsing cmd elabFns) do
+    let env ← getEnv
+    let shim := shimExt.getState env
+    let (code, stx) ← elabShimSyntaxCore cmd shim.text.source.endPos
+    setEnv <| shimExt.setState env <| shim.addCmd code stx
+
 /--
 A section of C code to elaborate.
-If no custom elaboration function is defined for a C command,
-the command is reprinted and added verbatim in the module's shim.
+See `elabShimConmand` for details on the elaboration process.
 -/
 scoped elab (name := sectionCmd)
 "alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
-  cmds.forM fun cmd => elabEachCommand cmd fun cmd => do
-    let s ← get
-    match commandElabAttribute.getEntries s.env cmd.getKind with
-    | [] => addCommandToShim cmd
-    | elabFns => elabCommandUsing s cmd elabFns
+  cmds.forM elabShimCommand
 
 /--
 Include the provided C header files in the module's shim.

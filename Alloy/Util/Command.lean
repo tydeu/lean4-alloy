@@ -19,13 +19,14 @@ def mkInfoTree (elaborator : Name) (stx : Syntax) (trees : PersistentArray InfoT
     openDecls := scope.openDecls, options := scope.opts, ngen := s.ngen
   } tree
 
-/-- Private definition from `Lean.Elab.Command`. -/
-def elabCommandUsing (s : State) (stx : Syntax) : List (KeyedDeclsAttribute.AttributeEntry CommandElab) → CommandElabM Unit
-  | []                => withInfoTreeContext (mkInfoTree := mkInfoTree `no_elab stx) <| throwError "unexpected syntax{indentD stx}"
-  | (elabFn::elabFns) =>
-    catchInternalId unsupportedSyntaxExceptionId
-      (withInfoTreeContext (mkInfoTree := mkInfoTree elabFn.declName stx) <| elabFn.value stx)
-      (fun _ => do set s; elabCommandUsing s stx elabFns)
+/-- Adapted from the private `elabCommandUsing` definition in `Lean.Elab.Command`. -/
+def elabCommandUsing (stx : Syntax) : List (KeyedDeclsAttribute.AttributeEntry CommandElab) → CommandElabM Bool
+| [] => return false
+| (elabFn::elabFns) => do
+  let s ← get
+  catchInternalId unsupportedSyntaxExceptionId
+    (withInfoTreeContext (mkInfoTree := mkInfoTree elabFn.declName stx) <| elabFn.value stx *> pure true)
+    (fun _ => do set s; elabCommandUsing stx elabFns)
 
 /-- Like `elabCommand` but using a custom function `f` to handle elaboration on the expanded commands. -/
 partial def elabEachCommand (stx : Syntax) (f : Syntax → CommandElabM Unit) : CommandElabM Unit :=
