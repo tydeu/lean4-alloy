@@ -53,9 +53,7 @@ end
 /-! ## Lean Interface                                                         -/
 --------------------------------------------------------------------------------
 
-opaque S.nonemptyType : NonemptyType
-def S : Type := S.nonemptyType.type
-instance : Nonempty S := S.nonemptyType.property
+opaque_type S
 
 alloy c extern "lean_mk_S"
 def mkS (x y : UInt32) (string : String) : S := {
