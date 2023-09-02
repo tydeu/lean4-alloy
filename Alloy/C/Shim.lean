@@ -21,6 +21,15 @@ initialize shimExt : ModuleEnvExtension Shim ←
 def getModuleShim (env : Environment) (mod : Name) : Shim :=
   shimExt.find? env mod |>.getD {}
 
+/--
+`#print_c_shim [<mod>]` outputs the C shim of the specified module or the
+current C shim of the current module if none is specified. Useful for debugging.
+-/
+elab outTk:"#print_c_shim" mod?:(ppSpace ident)? : command => do
+  match mod? with
+  | none => logInfoAt outTk <| toString <| C.getLocalShim (← getEnv)
+  | some mod => logInfoAt outTk <| toString <| C.getModuleShim (← getEnv) mod.getId
+
 /-- Reprint a command and add it verbatim to the module's C shim. -/
 def addCommandToShim [Monad m] [MonadEnv m] [MonadError m] (cmd : Syntax) : m Unit := do
   let env ← getEnv
