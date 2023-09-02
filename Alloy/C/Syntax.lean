@@ -72,6 +72,12 @@ instance : Coe StrLit Expr where
 instance : Coe CharLit Expr where
   coe x := Unhygienic.run `(cExpr| $x:char)
 
+instance : Coe ConstExpr Expr where
+  coe x :=
+    match x with
+    | `(constExpr| $x:cExpr) => Unhygienic.run `(cExpr| $x)
+    | _ => ⟨.missing⟩
+
 instance : Coe Expr ConstExpr where
   coe x := Unhygienic.run `(constExpr| $x:cExpr)
 

@@ -3,9 +3,8 @@ Copyright (c) 2023 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Lean
 import Alloy.Util.Binder
-open Lean Elab Parser Command Meta
+import Lean.Elab.MutualDef
 
 /-! # Opaque Types
 Defines an `opaque_type` command which is simplified syntactic sugar for
@@ -13,6 +12,7 @@ defining a nonempty type with an opaque representation.
 -/
 
 namespace Alloy
+open Lean Elab Parser Command Meta
 
 /--
 The `Nonempty` instance of a `NonemptyType`.
@@ -36,6 +36,8 @@ def expandOptVisibility : Option (TSyntax [``Command.private,``Command.protected
   else if kind == ``Command.protected then pure Visibility.protected
   else Macro.throwErrorAt v "unexpected visibility modifier"
 
+/-- A type specifier that is restricted to types of the `Type [<lv>]` form. -/
+syntax typeLvSpec := " : " "Type " (level)?
 
 /--
 An opaque type is a nonempty type with an opaque representation.
@@ -56,15 +58,15 @@ instance T.nonempty <binders>.. : Nonempty (T ..) :=
 ```
 -/
 syntax (name := opaqueType)
-  (docComment)? (Term.attributes)? (visibility)? «unsafe»?
-  "opaque_type " declId binders (" : " "Type " (level)?)? : command
+(docComment)? (Term.attributes)? (visibility)? «unsafe»?
+"opaque_type " declId binders (typeLvSpec)? : command
 
 elab_rules : command
-| `(opaqueType| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$unsafeTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?)  => do
+| `(opaqueType| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?)  => do
   let docString? ← doc?.mapM getDocStringText
   let attrs ← if let some attrs := attrs? then elabDeclAttrs attrs else pure #[]
   let visibility ← liftMacroM <| expandOptVisibility vis?
-  let safety := if unsafeTk?.isSome then DefinitionSafety.unsafe else .safe
+  let safety := if uTk?.isSome then DefinitionSafety.unsafe else .safe
   let {declName, ..} ← expandDeclId declId {docString?, visibility}
   runTermElabM fun vars => do
   let nt ← if let some (some lv) := lv?? then

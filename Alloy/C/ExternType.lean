@@ -39,7 +39,6 @@ unsafe def evalExternTypeUnsafe (stx : Syntax) : TermElabM ExternType :=
 @[implemented_by evalExternTypeUnsafe]
 opaque evalExternType (stx : Syntax) : TermElabM ExternType
 
-
 /--
 Declare an `opaque_type` represented by a `lean_external_class` object.
 The generated definition can be configured through an `ExternType` term.
@@ -49,38 +48,45 @@ alloy c extern_type LeanType (..) : Type u => c_type := <config term>
 ```
 -/
 scoped syntax (name := externTypeCmd)
-  (docComment)? (Term.attributes)? (visibility)?
-  "alloy " &"c " &"extern_type " declId binders (" : " "Type " (level)?)?
-    " => " cSpec+ " := " term : command
+(docComment)? (Term.attributes)? (visibility)? «unsafe»?
+"alloy " &"c " &"extern_type " declId binders (typeLvSpec)?
+  " => " cSpec+ " := " term : command
 
 elab_rules : command
-| `(externTypeCmd| $(doc?)? $(attrs?)? $(vis?)? alloy c extern_type $declId $bs* $[: Type $(lv??)?]? => $cType* := $cfg) => do
-  let (id, _) := expandDeclIdCore declId
+| `(externTypeCmd| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]?
+  alloy c extern_type $declId $bs* $[$ty]? => $cTy* := $cfg) => do
+  let ref ← getRef
+  let (name, _) := expandDeclIdCore declId
   let cfg ← liftTermElabM <| evalExternType cfg
   let cls := mkIdent <| if cfg.externalClass.isAnonymous then
-    .mkSimple <| "_alloy_g_class_" ++ id.mangle else cfg.externalClass
+    .mkSimple <| "_alloy_g_class_" ++ name.mangle else cfg.externalClass
   let toLean := if cfg.toLean.isAnonymous then
-    .mkSimple <| "_alloy_to_" ++ id.mangle else cfg.toLean
+    .mkSimple <| "_alloy_to_" ++ name.mangle else cfg.toLean
   let ofLean := if cfg.ofLean.isAnonymous then
-    .mkSimple <| "_alloy_of_" ++ id.mangle else cfg.ofLean
+    .mkSimple <| "_alloy_of_" ++ name.mangle else cfg.ofLean
   let foreach := mkIdent cfg.foreach
   let finalize := mkIdent cfg.finalize
-  let cmd ← MonadRef.withRef .missing `(
-  $[$doc?:docComment]? $(attrs?)? $(vis?)?
-  opaque_type $declId $bs* $[: Type $(lv??)?]?
-  alloy c section
-  static lean_external_class * $cls:ident = NULL;
-  static inline lean_obj_res $(mkIdent toLean):ident($cType:cDeclSpec* * o) {
-    if ($cls == NULL) {
-      $cls:ident = lean_register_external_class($finalize, $foreach);
-    }
-    return lean_alloc_external($cls, o);
-  }
-  static inline $cType* const * $(mkIdent ofLean):ident(b_lean_obj_arg o) {
-    return ($cType* *)(lean_get_external_data(o));
-  }
-  end
+  -- Lean Definition
+  let cmd ← `(
+    $[$doc?:docComment]? $(attrs?)? $(vis?)? $[unsafe%$uTk?]?
+    opaque_type $declId $bs* $[$ty]?
   )
-  withMacroExpansion (← getRef) cmd <| elabCommand cmd
-  let declName ← resolveGlobalConstNoOverloadCore id
+  withMacroExpansion ref cmd <| elabCommand cmd
+  let declName ← resolveGlobalConstNoOverloadCore name
+  -- C Definition
+  let cmd ← MonadRef.withRef .missing `(
+    alloy c section
+    static lean_external_class * $cls:ident = NULL;
+    static inline lean_obj_res $(mkIdent toLean):ident($cTy:cDeclSpec* * o) {
+      if ($cls == NULL) {
+        $cls:ident = lean_register_external_class($finalize, $foreach);
+      }
+      return lean_alloc_external($cls, o);
+    }
+    static inline $cTy* const * $(mkIdent ofLean):ident(b_lean_obj_arg o) {
+      return ($cTy* *)(lean_get_external_data(o));
+    }
+    end
+  )
+  withMacroExpansion ref cmd <| elabCommand cmd
   modifyEnv fun env => translatorExt.insert env declName {toLean, ofLean}

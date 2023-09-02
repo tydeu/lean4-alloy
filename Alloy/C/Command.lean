@@ -94,8 +94,8 @@ is essentially equivalent to
 alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
 ```
 -/
-scoped elab (name := externDecl) doc?:«docComment»?
-"alloy " &"c " ex:&"extern " sym?:«str»? attrs?:Term.«attributes»?
+scoped elab (name := externDecl) doc?:(docComment)?
+"alloy " &"c " ex:&"extern " sym?:(str)? attrs?:(Term.attributes)?
 "def " id:declId bx:binders " : " type:term " := " body:cStmt : command => do
 
   -- Lean Definition
@@ -109,24 +109,22 @@ scoped elab (name := externDecl) doc?:«docComment»?
   let attr ← withRef ex `(Term.attrInstance| extern $symLit:str)
   let attrs := #[attr] ++ expandAttrs attrs?
   let bs := bx.raw.getArgs.map (⟨.⟩)
-  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id:declId $[$bs]* : $type)
+  let cmd ← `($[$doc?]? @[$attrs,*] opaque $id $[$bs]* : $type)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
 
   -- C Definition
   let env ← getEnv
-  if let some info := env.find? name then
-    if let some decl := IR.findEnvDecl env name then
-      let bvs ← liftMacroM <| bs.concatMapM matchBinder
-      let id := mkIdentFrom symLit (Name.mkSimple extSym)
-      let ty ← liftMacroM <| withRef type <| expandIrResultTypeToC false decl.resultType
-      let params ← liftMacroM <| mkParams info.type bvs decl.params
-      let body := packBody body
-      let fn ← MonadRef.withRef Syntax.missing <| `(function|
-        LEAN_EXPORT%$ex $ty:cTypeSpec $id:ident($params:params) $body:compStmt
-      )
-      let cmd ← `(alloy c section $fn:function end)
-      withMacroExpansion (← getRef) cmd <| elabCommand cmd
-    else
-      throwError "failed to find Lean IR definition"
-  else
-    throwError "failed to find Lean definition"
+  let some info := env.find? name
+    | throwError "failed to find Lean definition"
+  let some decl := IR.findEnvDecl env name
+    | throwError "failed to find Lean IR definition"
+  let bvs ← liftMacroM <| bs.concatMapM matchBinder
+  let id := mkIdentFrom symLit (Name.mkSimple extSym)
+  let ty ← liftMacroM <| withRef type <| expandIrResultTypeToC false decl.resultType
+  let params ← liftMacroM <| mkParams info.type bvs decl.params
+  let body := packBody body
+  let fn ← MonadRef.withRef Syntax.missing <| `(function|
+    LEAN_EXPORT%$ex $ty:cTypeSpec $id:ident($params:params) $body:compStmt
+  )
+  let cmd ← `(alloy c section $fn:function end)
+  withMacroExpansion (← getRef) cmd <| elabCommand cmd
