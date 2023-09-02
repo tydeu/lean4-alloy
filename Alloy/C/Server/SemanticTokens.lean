@@ -37,8 +37,8 @@ structure SemanticTokenEntry where
   modifierMask : Nat
   deriving Inhabited, Repr
 
-protected def SemanticTokenEntry.ordLt (a b : SemanticTokenEntry) : Bool:=
-  if a.line = b.line then a.startChar < b.startChar else a.line < b.line
+protected def SemanticTokenEntry.ordLt (a b : SemanticTokenEntry) : Bool :=
+  a.line < b.line ∨ (a.line = b.line ∧ a.startChar < b.startChar)
 
 def encodeTokenEntries (entries : Array SemanticTokenEntry) : Array Nat := Id.run do
   let mut data := #[]
@@ -112,15 +112,28 @@ def handleSemanticTokens
         let shimEntries := decodeShimTokens shimTokens.data
           shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
         let leanEntries := decodeLeanTokens leanTokens.data
-        let sortedEntries := shimEntries ++ leanEntries
-          |>.qsort SemanticTokenEntry.ordLt
-        let data := encodeTokenEntries sortedEntries
-        return {leanTokens with data}
+        -- Stable sort the combined entries (Lean first)
+        let entries := leanEntries ++ shimEntries
+        let entries := entries.zip <| entries.size.fold (flip Array.push) #[]
+        let entries := entries.qsort fun (a,i) (b,j) =>
+          a.line < b.line ∨ (a.line = b.line ∧ (a.startChar < b.startChar ∨ (a.startChar = b.startChar ∧ i < j)))
+        let entries := entries.map (·.1)
+        if h : entries.size > 0 then do
+          -- Filter out overlapping tokens (preferring the first)
+          let entries := entries[1:].foldl (init := #[entries[0]]) fun es b =>
+            let a := es.back
+            if a.line = b.line && (b.startChar ≤ a.startChar + a.length) then
+              es
+            else
+              es.push b
+          return {leanTokens with data := encodeTokenEntries entries}
+        else
+          return leanTokens
 
 def handleSemanticTokensFull
 (_ : SemanticTokensParams) (prev : RequestTask SemanticTokens)
 : RequestM (RequestTask SemanticTokens) := do
-  handleSemanticTokens 0 ⟨1 <<< 16⟩ prev
+  handleSemanticTokens 0 ⟨1 <<< 31⟩ prev
 
 def handleSemanticTokensRange
 (p : SemanticTokensRangeParams) (prev : RequestTask SemanticTokens)
