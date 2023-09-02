@@ -55,24 +55,29 @@ end
 
 opaque_type S
 
+alloy c translator S := {
+  ofLean := `to_S
+  toLean := `S_to_lean
+}
+
 alloy c extern "lean_mk_S"
 def mkS (x y : UInt32) (string : String) : S := {
   S* s = malloc(sizeof(S));
   s->m_x = x;
   s->m_y = y;
   s->m_s = string;
-  return S_to_lean(s);
+  return to_lean<S>(s);
 }
 
 alloy c extern "lean_S_add_x_y"
 def S.addXY (s : @& S) : UInt32 := {
-  return to_S(s)->m_x + to_S(s)->m_y;
+  return of_lean<S>(s)->m_x + of_lean<S>(s)->m_y;
 }
 
 alloy c extern "lean_S_string"
 def S.string (s : @& S) : String := {
-  lean_inc(to_S(s)->m_s);
-  return to_S(s)->m_s;
+  lean_inc(of_lean<S>(s)->m_s);
+  return of_lean<S>(s)->m_s;
 }
 
 alloy c extern "lean_S_global_append"
@@ -99,9 +104,9 @@ def updateGlobalS (s : @& S) : BaseIO Unit := {
   if (g_s.m_s != NULL) {
     lean_dec(g_s.m_s);
   }
-  lean_inc(to_S(s)->m_s);
-  g_s.m_x = to_S(s)->m_x;
-  g_s.m_y = to_S(s)->m_y;
-  g_s.m_s = to_S(s)->m_s;
+  lean_inc(of_lean<S>(s)->m_s);
+  g_s.m_x = of_lean<S>(s)->m_x;
+  g_s.m_y = of_lean<S>(s)->m_y;
+  g_s.m_s = of_lean<S>(s)->m_s;
   return lean_io_result_mk_ok(lean_box(0));
 }
