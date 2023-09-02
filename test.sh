@@ -11,4 +11,10 @@ pushd examples/S
 ./test.sh
 popd
 
-find tests -type f -exec ${LAKE:-lake} env lean {} \;
+pushd tests/compile
+./test.sh
+popd
+
+find tests/run -type f -exec ${LAKE:-lake} env lean {} \;
+
+echo "all done"
