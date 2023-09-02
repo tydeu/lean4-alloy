@@ -79,20 +79,24 @@ between Lean source information of elements within the tree. Thus, it is very
 linear in its performance.
 -/
 partial def ShimSyntax.leanPosToShim? (stx : ShimSyntax)
-(leanPos : String.Pos) (shimStartPos : String.Pos := 0) : Option String.Pos := do
+(leanPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option String.Pos := do
   if let .node info _ args := stx then
-    let .synthetic shimStartPos _ := info | failure
-    let mut startPos := shimStartPos
+    let .synthetic shimHeadPos _ := info | failure
+    let mut headPos := shimHeadPos
     for arg in args do
-      if let some pos := leanPosToShim? arg leanPos startPos then
+      let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
+      if let some pos := leanPosToShim? arg leanPos headPos tailPos then
         return pos
-      startPos := startPos + ⟨ShimSyntax.bsize arg⟩
+      headPos := tailPos
     failure
   else
     let some leanHeadPos := stx.getPos? | failure
     let some leanTailPos := stx.getTailPos? | failure
     if leanHeadPos ≤ leanPos && leanPos < leanTailPos then
-      return leanPos - leanHeadPos + shimStartPos
+      let leanOff := leanPos - leanHeadPos
+      let shimLen := shimTailPos - shimHeadPos
+      let shimPos := shimHeadPos + ⟨min leanOff.byteIdx shimLen.byteIdx⟩
+      return shimPos
     failure
 
 /-- Computes the start and end of the `atom`/`ident` in the Lean source. -/
@@ -156,13 +160,13 @@ protected def toString (self : Shim) : String :=
 
 instance : ToString Shim := ⟨Shim.toString⟩
 
-/--
-Add a command to the shim.
-Fails if the command could not be reprinted.
--/
-def addCmd (code : String) (stx : Syntax) (self : Shim) : Shim :=
-  let code := self.text.source ++ code ++ "\n"
-  ⟨self.cmds.push stx, FileMap.ofString code⟩
+/-- Add some dangling code to the shim. -/
+def addCode (code : String) (self : Shim) : Shim :=
+  {self with text.source := self.text.source ++ code}
+
+/-- Add a command syntax to the shim's syntax tree and rebuild the `FileMap`. -/
+def addCmd (stx : Syntax) (self : Shim) : Shim :=
+  ⟨self.cmds.push stx, FileMap.ofString (self.text.source ++ "\n")⟩
 
 /--
 Reprint a command and add it to the shim.
@@ -170,7 +174,8 @@ Fails if the command could not be reprinted.
 -/
 def pushCmd? (stx : Syntax) (self : Shim) : Option Shim := do
   let (code, stx) ← reprint stx self.text.source.endPos
-  self.addCmd code stx
+  let code := self.text.source ++ code ++ "\n"
+  return ⟨self.cmds.push stx, FileMap.ofString code⟩
 
 /--
 Reprint and append an `Array` of commands to the shim.

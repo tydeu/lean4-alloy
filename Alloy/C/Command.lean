@@ -13,21 +13,7 @@ import Lean.Compiler.NameMangling
 namespace Alloy.C
 open Lean Parser Elab Command
 
-syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
-
-/-- Reprint a command and add it verbatim to the module's C shim. -/
-def addCommandToShim [Monad m] [MonadEnv m] [MonadError m] (cmd : Syntax) : m Unit := do
-  let env ← getEnv
-  let shim := shimExt.getState env
-  if let some shim := shim.pushCmd? cmd then
-    setEnv <| shimExt.setState env shim
-  else
-    throwError s!"command '{cmd.getKind}' could not reprinted and add raw to the C shim"
-
-/-- Elaborate some shim code at the end of the C shim. -/
-@[inline] def elabShimSyntax (stx : Syntax) : ShimElabM ShimElem := do
-  let startPos := shimExt.getState (← getEnv) |>.text.source.endPos
-  elabShimSyntaxCore stx startPos
+scoped syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
 
 /--
 Elaborate a C command. The steps are as follows:
@@ -43,10 +29,8 @@ def elabShimCommand (cmd : Syntax) : CommandElabM Unit :=
   elabEachCommand cmd fun cmd => do
   let elabFns := commandElabAttribute.getEntries (← getEnv) cmd.getKind
   unless (← elabCommandUsing cmd elabFns) do
-    let env ← getEnv
-    let shim := shimExt.getState env
-    let (code, stx) ← elabShimSyntaxCore cmd shim.text.source.endPos
-    setEnv <| shimExt.setState env <| shim.addCmd code stx
+    let stx ← elabShimSyntax cmd
+    modifyEnv (shimExt.modifyState · (·.addCmd stx))
 
 /--
 A section of C code to elaborate.
