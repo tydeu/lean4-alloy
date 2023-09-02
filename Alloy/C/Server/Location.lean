@@ -57,10 +57,7 @@ def handleCompletion (p : CompletionParams)
               position := shimCursorPos
             }
       mergeResponses task prev fun shimResult leanResult =>
-        let trRange? range := do
-          let startPos ← shim.lspPosToLeanLsp? range.start text
-          let len := (range.end.character - range.start.character)
-          return ⟨startPos, ⟨startPos.line, startPos.character + len⟩⟩
+        let trRange? range := shim.lspRangeToLeanLsp? range text
         let shimItems := shimResult.items.map fun item =>
           {item with
             textEdit? := item.textEdit?.bind fun edit =>
@@ -80,13 +77,16 @@ def handleCompletion (p : CompletionParams)
 def handleHover (p : HoverParams)
 (prev : RequestTask (Option Hover)) : RequestM (RequestTask (Option Hover)) := do
   have : LsCall "textDocument/hover" TextDocumentPositionParams (Option Hover) := {}
-  handleLocation p.position "textDocument/hover" prev fun _ shimHover? leanHover? => do
+  handleLocation p.position "textDocument/hover" prev fun shim shimHover? leanHover? => do
     let some shimHover := shimHover? | return leanHover?
+    let text := (← readDoc).meta.text
+    let range? := shimHover.range? >>= (shim.lspRangeToLeanLsp? · text)
     if let some leanHover := leanHover? then
       let v := s!"{leanHover.contents.value}\n\n---\n\n{shimHover.contents.value}"
-      return some {leanHover with contents.value := v}
+      -- We use the shim range here because it is generally not too big or too small
+      return some {leanHover with contents.value := v, range?}
     else
-      return some {shimHover with range? := none}
+      return some {shimHover with range?}
 
 /-! ## Goto Support -/
 

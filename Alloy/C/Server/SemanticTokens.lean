@@ -76,13 +76,15 @@ def decodeShimTokens
     line := line + deltaLine
     char := if deltaLine = 0 then char + deltaStart else deltaStart
     let shimPos := shim.text.lspPosToUtf8Pos ⟨line, char⟩
-    let some pos := shim.shimPosToLean? shimPos
+    let some pos := shim.shimPosToLeanStx? shimPos >>= (·.getPos?)
       | continue -- Ditto
-    unless beginPos < pos && pos < endPos do
+    let shimTailPos := shim.text.source.prev <|
+      shim.text.source.codepointPosToUtf8PosFrom shimPos <|
+      shim.text.source.utf16PosToCodepointPosFrom len shimPos
+    let some tailPos := shim.shimPosToLeanStx? shimTailPos >>= (·.getTailPos?)
+      | continue
+    unless pos < tailPos && beginPos ≤ pos && tailPos ≤ endPos do
       continue
-    let leanLen :=
-      shim.shimPosToLean? (shimPos + ⟨len - 1⟩) |>.map
-      (fun p => (p - pos).byteIdx + 1) |>.getD len
     let lspPos := text.utf8PosToLspPos pos
     let mods := bitMaskToArray modifiers modMask
     let modMask := bitMaskOfArray SemanticTokenModifier.names mods
@@ -90,6 +92,8 @@ def decodeShimTokens
       | continue -- Ditto
     let some type := SemanticTokenType.names.getIdx? type
       | continue -- Skip semantic token types not supported by the Lean server
+    let leanLen := text.source.extract pos tailPos |>.length
+    let leanLen := shim.text.source.codepointPosToUtf16PosFrom leanLen pos
     entries := entries.push ⟨lspPos.line, lspPos.character, leanLen, type, modMask⟩
   return entries
 

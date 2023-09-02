@@ -22,11 +22,16 @@ def Shim.posToLeanLsp? (self : Shim) (shimPos : String.Pos) (leanText : FileMap)
 def Shim.lspPosToLeanLsp? (self : Shim) (shimPos : Lsp.Position) (leanText : FileMap) : Option Lsp.Position := do
   leanText.utf8PosToLspPos (← self.lspPosToLean? shimPos)
 
+def Shim.lspRangeToLean? (self : Shim) (shimRange : Lsp.Range) : Option String.Range := do
+  let shimHead := self.text.lspPosToUtf8Pos shimRange.start
+  let leanHead ← self.shimPosToLeanStx? shimHead >>= (·.getPos?)
+  let shimTail := self.text.source.prev (self.text.lspPosToUtf8Pos shimRange.end)
+  let leanTail ← self.shimPosToLeanStx? shimTail >>= (·.getTailPos?)
+  return ⟨leanHead, leanTail⟩
+
 def Shim.lspRangeToLeanLsp? (self : Shim) (shimRange : Lsp.Range) (leanText : FileMap) : Option Lsp.Range := do
-  let startPos ← self.lspPosToLeanLsp? shimRange.start leanText
-  let beforeEndPos := self.text.source.prev (self.text.lspPosToUtf8Pos shimRange.end)
-  let beforeEndPos := self.text.source.next (← self.shimPosToLean? beforeEndPos)
-  return ⟨startPos, leanText.utf8PosToLspPos beforeEndPos⟩
+  let range ← inline <| self.lspRangeToLean? shimRange
+  return ⟨leanText.utf8PosToLspPos range.start, leanText.utf8PosToLspPos range.stop⟩
 
 /-- Fallback to returning `resp` if `act` errors. Also, log the error message. -/
 def withFallbackResponse (resp : RequestTask α) (act : RequestM (RequestTask α)) : RequestM (RequestTask α) :=

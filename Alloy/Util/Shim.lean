@@ -90,8 +90,8 @@ partial def ShimSyntax.leanPosToShim? (stx : ShimSyntax)
       headPos := tailPos
     failure
   else
-    let some leanHeadPos := stx.getPos? | failure
-    let some leanTailPos := stx.getTailPos? | failure
+    let leanHeadPos ← stx.getPos?
+    let leanTailPos ← stx.getTailPos?
     if leanHeadPos ≤ leanPos && leanPos < leanTailPos then
       let leanOff := leanPos - leanHeadPos
       let shimLen := shimTailPos - shimHeadPos
@@ -99,16 +99,8 @@ partial def ShimSyntax.leanPosToShim? (stx : ShimSyntax)
       return shimPos
     failure
 
-/-- Computes the start and end of the `atom`/`ident` in the Lean source. -/
-def ShimSyntax.leafRange? : ShimSyntax → Option (String.Pos × String.Pos)
-| .atom (.original _ head _ tail) .. => (head, tail)
-| .atom (.synthetic head tail) .. => (head, tail)
-| .ident (.original _ head _ tail) .. => (head, tail)
-| .ident (.synthetic head tail) .. => (head, tail)
-| _ => none
-
 /--
-Find the Lean position within the
+Find the Lean `Syntax` leaf within the
 `ShimSyntax` corresponding to `shimPos` in the shim.
 
 This algorithms assumes the shim `SourceInfo` position of nodes are
@@ -117,8 +109,8 @@ of a higher node's range in the syntax tree. In other words, it assumes the
 syntax has not been re-ordered since it was tagged with source information
 (e.g., via `reprint`).
 -/
-partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
-(shimPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option String.Pos := do
+partial def ShimSyntax.shimPosToLeanStx? (stx : ShimSyntax)
+(shimPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option Syntax := do
   if let .node info _ args := stx then
     let .synthetic shimHeadPos shimTailPos := info | failure
     if shimHeadPos ≠ shimTailPos then -- e.g., null nodes
@@ -127,17 +119,28 @@ partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
     let mut headPos := shimHeadPos
     for arg in args do
       let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
-      if let some pos := shimPosToLean? arg shimPos headPos tailPos then
-        return pos
+      if let some stx := shimPosToLeanStx? arg shimPos headPos tailPos then
+        return stx
       headPos := tailPos
   else
-    let (leanHeadPos, leanTailPos) ← stx.leafRange?
     if shimHeadPos ≤ shimPos && shimPos < shimTailPos then
-      let shimOff := shimPos - shimHeadPos
-      let leanLen := leanTailPos - leanHeadPos
-      let leanPos := leanHeadPos + ⟨min shimOff.byteIdx leanLen.byteIdx⟩
-      return leanPos
+      return stx
   failure
+
+/--
+Find the Lean position within the
+`ShimSyntax` corresponding to `shimPos` in the shim.
+See `shimPosToLeanStx?` for details.
+-/
+partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
+(shimPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option String.Pos := do
+  let stx ← shimPosToLeanStx? stx shimPos shimHeadPos shimTailPos
+  let leanHeadPos ← stx.getPos?
+  let leanTailPos ← stx.getTailPos?
+  let shimOff := shimPos - shimHeadPos
+  let leanLen := leanTailPos - leanHeadPos
+  let leanPos := leanHeadPos + ⟨min shimOff.byteIdx leanLen.byteIdx⟩
+  return leanPos
 
 /-- A shim -- an array of commands with shim source position information. -/
 structure Shim where
@@ -202,11 +205,18 @@ def ofCmds (cmds : Array Syntax) : Shim :=
 Find the position within the shim
 corresponding to the `leanPos` in the Lean source.
 -/
-def leanPosToShim? (self : Shim) (leanPos : String.Pos) : Option String.Pos :=
+def leanPosToShim? (self : Shim) (leanPos : String.Pos) : Option String.Pos := do
   self.cmds.findSome? (·.leanPosToShim? leanPos)
 
 /--
-Find the position within the shim's Lean syntax
+Find the `Syntax` leaf within the shim's Lean source
+corresponding to the `shimPos` in the shim.
+-/
+def shimPosToLeanStx? (self : Shim) (shimPos : String.Pos) : Option Syntax :=
+  self.cmds.findSome? (·.shimPosToLeanStx? shimPos)
+
+/--
+Find the position within the shim's Lean source
 corresponding to the `shimPos` in the shim.
 -/
 def shimPosToLean? (self : Shim) (shimPos : String.Pos) : Option String.Pos :=
