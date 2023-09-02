@@ -12,7 +12,7 @@ An adaption of Lean 4's ['foreign'][1] example for Alloy.
 alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>
 
 --------------------------------------------------------------------------------
-/-! ## C Definition of S                                                      -/
+/-! ## Definition of S                                                      -/
 --------------------------------------------------------------------------------
 
 alloy c section
@@ -32,33 +32,18 @@ static void S_foreach(void* ptr, b_lean_obj_arg f) {
   lean_apply_1(f, ((S*)ptr)->m_s);
 }
 
-static lean_external_class * g_S_class = NULL;
-
-static inline lean_object * S_to_lean(S* s) {
-  if (g_S_class == NULL) {
-    g_S_class = lean_register_external_class(S_finalize, S_foreach);
-  }
-  return lean_alloc_external(g_S_class, s);
-}
-
-static inline S const * to_S(b_lean_obj_arg s) {
-  return (S*)(lean_get_external_data(s));
-}
-
 static S g_s = {0, 0, NULL};
 
 end
 
+alloy c extern_type S => S := {
+  foreach := `S_foreach
+  finalize := `S_finalize
+}
+
 --------------------------------------------------------------------------------
 /-! ## Lean Interface                                                         -/
 --------------------------------------------------------------------------------
-
-opaque_type S
-
-alloy c translator S := {
-  ofLean := `to_S
-  toLean := `S_to_lean
-}
 
 alloy c extern "lean_mk_S"
 def mkS (x y : UInt32) (string : String) : S := {
