@@ -83,7 +83,7 @@ elab_rules : command
       }
       return lean_alloc_external($cls, o);
     }
-    static inline $cTy* const * $(mkIdent ofLean):ident(b_lean_obj_arg o) {
+    static inline $cTy* * $(mkIdent ofLean):ident(b_lean_obj_arg o) {
       return ($cTy* *)(lean_get_external_data(o));
     }
     end
