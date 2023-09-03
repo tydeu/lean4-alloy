@@ -3,17 +3,15 @@ Copyright (c) 2023 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
-import Alloy.C.Grammar
-import Alloy.C.Command
+import Alloy.C.Shim
 import Lean.Elab.Eval
 
 /-! # Lean ↔ C Translation
 Definitions for wrapping and unwrapping C data in Lean types.
 -/
 
-open Lean Elab Syntax Command
-
 namespace Alloy.C
+open Lean Elab Syntax Command
 
 /-- A translator stores the C functions used to wrap and unwrap a Lean FFI type. -/
 structure Translator where

@@ -7,48 +7,12 @@ import Alloy.C.IR
 import Alloy.C.Shim
 import Alloy.Util.Syntax
 import Alloy.Util.Binder
-import Alloy.Util.ShimElab
 import Lean.Compiler.NameMangling
 
 namespace Alloy.C
 open Lean Parser Elab Command
 
 scoped syntax (name := leanExport) "LEAN_EXPORT" : cDeclSpec
-
-/--
-Elaborate a C command. The steps are as follows:
-1. Unpack null nodes and expand macros.
-2. Attempt to find and apply a standard Lean `command` elaborator.
-3. If none exists, visit each node of the the syntax and try to find an
-Alloy elaborator for the kind to elaborate the node into a `ShimElem`, which
-is then added to the shim.
-4. For nodes lacking any elaborator or raw tokens, attempt to reprint
-the syntax (via `Alloy.reprint`) and add it verbatim to the shim.
--/
-def elabShimCommand (cmd : Syntax) : CommandElabM Unit :=
-  elabEachCommand cmd fun cmd => do
-  let elabFns := commandElabAttribute.getEntries (← getEnv) cmd.getKind
-  unless (← elabCommandUsing cmd elabFns) do
-    let stx ← elabShimSyntax cmd
-    modifyEnv (shimExt.modifyState · (·.addCmd stx))
-
-/--
-A section of C code to elaborate.
-See `elabShimConmand` for details on the elaboration process.
--/
-scoped elab (name := sectionCmd)
-"alloy " &"c " &"section" ppLine cmds:cCmd+ ppLine "end" : command => do
-  cmds.forM elabShimCommand
-
-/--
-Include the provided C header files in the module's shim.
-A convenience macro to create multiple `#include` directives at once.
--/
-scoped macro (name := includeCmd)
-"alloy " &"c " &"include " hdrs:header+ : command => do
-  let cmds ← MonadRef.withRef Syntax.missing <|
-    hdrs.mapM fun hdr => `(cCmd|#include $hdr)
-  `(alloy c section $cmds* end)
 
 def mkParams (fnType : Lean.Expr)
 (bvs : Array BinderSyntaxView) (irParams : Array IR.Param)
