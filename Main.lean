@@ -8,7 +8,7 @@ import Alloy
 open Lean System Alloy
 
 def emitCShim (module : Name) (outFile? : Option FilePath) : IO PUnit := do
-  let env ← Lean.importModules [{module}] Options.empty
+  let env ← Lean.importModules #[{module}] Options.empty
   let shim := C.getModuleShim env module
   if let some outFile := outFile? then
     IO.FS.writeFile outFile shim.toString
