@@ -760,7 +760,7 @@ syntax aggrDeclaration :=
   (atomic(lookahead(cSpec (cSpec <|> aggrDeclarator <|> ";"))) cSpec)+
   aggrDeclarator,* ";"
 
-syntax aggrDef := "{" aggrDeclaration* "}"
+syntax aggrDef := "{" (lineComment <|> blockComment <|> aggrDeclaration)* "}"
 syntax aggrSig := aggrDef <|> (ident optional(aggrDef))
 
 /-- A C [struct](https://en.cppreference.com/w/c/language/struct) declaration. -/
@@ -778,7 +778,7 @@ attribute [cTypeSpec_parser] unionSpec
 /-- An [`enumerator`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
 syntax enumerator := ident optional(" = " constExpr)
 
-syntax enumDef := "{" enumerator,+ "}"
+syntax enumDef := "{" (lineComment <|> blockComment <|> enumerator),+ "}"
 syntax enumSig := enumDef <|> (ident optional(enumDef))
 
 /-- An [`enum-specifier`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
@@ -1001,6 +1001,14 @@ This behavior is controlled by the directives in this section.
 
 [1]: https://en.cppreference.com/w/c/preprocessor/conditional
 -/
+
+/--
+A C preprocessor `defined` unary expression.
+
+This is made a `cExpr` to avoid duplicating much of the expression category
+for preprocessor integral expressions.
+-/
+syntax:max "defined" (("(" ident ")") <|> ident) : cExpr
 
 /--
 The start of a C preprocessor conditional inclusion directive.
