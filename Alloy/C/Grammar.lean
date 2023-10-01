@@ -18,6 +18,8 @@ It uses Microsoft's [C Language Syntax Summary][1], the C11 standard's
 [3]: https://en.cppreference.com/w/c/language
 -/
 
+open Lean Parser
+
 namespace Alloy.C
 
 /-!
@@ -28,21 +30,25 @@ which is used by the cast expression syntax (`castExpr`).
 
 A good reference on the C representation of types is:
 https://blog.robertelder.org/building-a-c-compiler-type-system-a-canonical-type-representation/
+
+**Implementation Note:** Syntax categories are currently defined
+with  `behavior := both` rather than the ideal `behavior := symbol` due to
+[lean4#2608][https://github.com/leanprover/lean4/issues/2608].
 -/
 
 /--
 A `specifier-qualifier` of the C grammar,
 which includes an `alignment-specifier` in Microsoft's C standard.
 -/
-declare_syntax_cat cSpec (behavior := symbol)
+declare_syntax_cat cSpec (behavior := both)
 
 /-- A `type-specifier` of the C grammar. -/
-declare_syntax_cat cTypeSpec (behavior := symbol)
+declare_syntax_cat cTypeSpec (behavior := both)
 
 syntax cTypeSpec : cSpec
 
 /-- A `type-qualifier` of the C grammar. -/
-declare_syntax_cat cTypeQ (behavior := symbol)
+declare_syntax_cat cTypeQ (behavior := both)
 
 syntax cTypeQ : cSpec
 
@@ -50,10 +56,10 @@ syntax cTypeQ : cSpec
 syntax pointer := (" * " cTypeQ*)+
 
 /-- A `direct-declarator` of the C grammar. -/
-declare_syntax_cat cDirectDeclarator (behavior := symbol)
+declare_syntax_cat cDirectDeclarator (behavior := both)
 
 /-- A `direct-abstract-declarator` of the C grammar. -/
-declare_syntax_cat cDirectAbsDeclarator (behavior := symbol)
+declare_syntax_cat cDirectAbsDeclarator (behavior := both)
 
 /-- A `declarator` of the C grammar. -/
 syntax declarator := «pointer»? cDirectDeclarator
@@ -68,7 +74,7 @@ syntax type := cSpec+ optional(absDeclarator)
 An `assignment-expression` of the C grammar.
 That is, a single (not comma separated) C `expression`.
 -/
-declare_syntax_cat cExpr (behavior := symbol)
+declare_syntax_cat cExpr (behavior := both)
 
 /--
 A [`constant-expression`][1] of the C grammar.
@@ -98,6 +104,73 @@ syntax initializerElem := (optional(cDesignator+ "=") cInitializer)
 /-- A C aggregate initializer that uses an initializer list. -/
 syntax "{" initializerElem,*,? "}" : cInitializer
 
+/--
+A [`statement`][1] of the C grammar.
+
+[1]: https://en.cppreference.com/w/c/language/statements
+-/
+declare_syntax_cat cStmt (behavior := both)
+
+/--
+A top-level C language command
+(i.e., a preprocessor directive or external declaration).
+-/
+declare_syntax_cat cCmd (behavior := both)
+
+--------------------------------------------------------------------------------
+/-! ## Comments                                                               -/
+--------------------------------------------------------------------------------
+
+variable (pushMissingOnError : Bool) in
+/-- Adaption of `Lean.Parser.finishCommentBlock`. -/
+partial def finishCommentBlock (nesting : Nat) : ParserFn := fun c s =>
+  let input := c.input
+  let i     := s.pos
+  if h : input.atEnd i then eoi s
+  else
+    let curr := input.get' i h
+    let i    := input.next' i h
+    if curr == '*' then
+      if h : input.atEnd i then eoi s
+      else
+        let curr := input.get' i h
+        if curr == '/' then -- "-/" end of comment
+          if nesting == 1 then s.next' input i h
+          else finishCommentBlock (nesting-1) c (s.next' input i h)
+        else
+          finishCommentBlock nesting c (s.setPos i)
+    else if curr == '/' then
+      if h : input.atEnd i then eoi s
+      else
+        let curr := input.get' i h
+        if curr == '-' then finishCommentBlock (nesting+1) c (s.next' input i h)
+        else finishCommentBlock nesting c (s.setPos i)
+    else finishCommentBlock nesting c (s.setPos i)
+where
+  eoi s := s.mkUnexpectedError (pushMissing := pushMissingOnError) "unterminated comment"
+
+def blockCommentBody :=
+  raw (finishCommentBlock (pushMissingOnError := true) 1) (trailingWs := true)
+
+/-- A C line comment. -/
+syntax lineComment := "//" Alloy.line
+
+/-- A C block comment. -/
+syntax blockComment := "/*" blockCommentBody
+
+attribute [cCmd_parser, cStmt_parser, cExpr_parser]
+  lineComment blockComment
+
+syntax atomic(lineComment) cStmt : cStmt
+syntax atomic(blockComment) cStmt : cStmt
+syntax cStmt lineComment : cStmt
+syntax cStmt blockComment : cStmt
+
+syntax atomic(lineComment) cExpr : cExpr
+syntax atomic(blockComment) cExpr : cExpr
+syntax cExpr lineComment : cExpr
+syntax cExpr blockComment : cExpr
+
 --------------------------------------------------------------------------------
 /-! ## Expressions                                                            -/
 --------------------------------------------------------------------------------
@@ -116,11 +189,28 @@ constants.
 syntax:max ident : cExpr
 
 /--
+A C `integer-suffix` of a [`integer-constant`][1].
+Can be an upper- or lower-case `l` or `ll` with a `u` prefix or suffix.
+
+[1]: https://en.cppreference.com/w/c/language/integer_constant
+-/
+def intSuffix :=
+  identSatisfy ["integer suffix"] fun
+  | .str .anonymous s =>
+    let s := s.toLower
+    let s :=
+      if s.front = 'u' then s.drop 1
+      else if s.back = 'u' then s.dropRight 1
+      else s
+    s = "l" || s = "ll"
+  | _ => false
+
+/--
 A C [`integer-constant`][1] implemented with a Lean numeric literal.
 
 [1]: https://en.cppreference.com/w/c/language/integer_constant
 -/
-syntax:max num (noWs (&"u" <|> &"U" <|> &"l" <|> &"L" <|> &"ll" <|> &"LL"))? : cExpr
+syntax:max (name := intConst) num (noWs intSuffix)? : cExpr
 
 /--
 A C [`floating-constant`][1] implemented with a Lean scientific literal.
@@ -128,7 +218,7 @@ Thus, it does not currently support hexadecimal floating constants.
 
 [1]: https://en.cppreference.com/w/c/language/floating_constant
 -/
-syntax:max scientific (noWs (&"f" <|> &"F" <|> &"l" <|> &"L"))? : cExpr
+syntax:max (name := floatConst) scientific (noWs (&"f" <|> &"F" <|> &"l" <|> &"L"))? : cExpr
 
 /--
 A C [`character-constant`][1] implemented with a Lean character literal.
@@ -136,7 +226,7 @@ Thus, it thus does not currently support prefixed or multicharacter constants.
 
 [1]: https://en.cppreference.com/w/c/language/character_constant
 -/
-syntax:max char : cExpr
+syntax:max (name := charConst) char : cExpr
 
 /-- A C [`string-literal`](https://en.cppreference.com/w/c/language/string_literal). -/
 syntax:max ((&"u8" <|> &"u" <|> &"U" <|> &"L") noWs)? str : cExpr
@@ -459,6 +549,9 @@ declare_syntax_cat cDeclSpec
 
 syntax cSpec : cDeclSpec
 
+/-- A GNU-style attribute specifier for a declaration. -/
+syntax "__attribute__" noWs "(" "(" (rawIdent ("(" cExpr,* ")")?),* ")" ")" : cDeclSpec
+
 /-!
 #### Storage Class Specifiers
 -/
@@ -468,7 +561,7 @@ A [`storage-class-specifier`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/storage_duration
 -/
-declare_syntax_cat cStorageClassSpec (behavior := symbol)
+declare_syntax_cat cStorageClassSpec (behavior := both)
 
 /-- The C automatic storage duration specifier. -/
 syntax "auto" : cStorageClassSpec
@@ -499,7 +592,7 @@ A [`function-specifier`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/function_specifiers
 -/
-declare_syntax_cat cFunSpec (behavior := symbol)
+declare_syntax_cat cFunSpec (behavior := both)
 
 /-- The C [inline](https://en.cppreference.com/w/c/language/inline) function specifier.-/
 syntax "inline" : cFunSpec
@@ -521,7 +614,7 @@ syntax cTypeQ+ "static"? cExpr : cIndex
 syntax cTypeQ* "*" : cIndex
 
 /-- A `parameter-declaration` of the C grammar. -/
-syntax paramDecl := cDeclSpec+ (declarator <|> absDeclarator)?
+syntax paramDecl := cDeclSpec+ (atomic(declarator) <|> absDeclarator)?
 
 /-- A `parameter-type-list` of the C grammar. -/
 syntax params := paramDecl,+,? "..."?
@@ -538,7 +631,6 @@ syntax:max "(" absDeclarator ")" : cDirectAbsDeclarator
 syntax:max "(" params ")" : cDirectAbsDeclarator
 syntax:arg cDirectAbsDeclarator:arg "[" optional(cIndex) "]" : cDirectAbsDeclarator
 syntax:arg cDirectAbsDeclarator:arg "(" optional(params) ")" : cDirectAbsDeclarator
-
 
 /-!
 ### Declarations
@@ -705,9 +797,6 @@ attribute [cSpec_parser] alignSpec
 /-! ## Statements                                                             -/
 --------------------------------------------------------------------------------
 
-/-- A [`statement`](https://en.cppreference.com/w/c/language/statements) of the C grammar. -/
-declare_syntax_cat cStmt (behavior := symbol)
-
 /-!
 ### Jump Statements
 
@@ -741,7 +830,7 @@ A [`compound-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
 -/
-syntax compStmt := "{" (declaration <|> cStmt)* "}"
+syntax compStmt := "{" (lineComment <|> blockComment <|> atomic(declaration) <|> cStmt)* "}"
 attribute [cStmt_parser] compStmt
 
 /-!
@@ -816,12 +905,6 @@ attribute [cStmt_parser] defaultStmt
 /-! ## Top-Level Commands                                                     -/
 --------------------------------------------------------------------------------
 
-/--
-A top-level C language command
-(i.e., a preprocessor directive or external declaration).
--/
-declare_syntax_cat cCmd
-
 /-!
 ### External Declarations
 -/
@@ -840,21 +923,26 @@ syntax declaration : cExternDecl
 
 syntax cExternDecl : cCmd
 
+--------------------------------------------------------------------------------
+/-! ## Preprocessor Directives                                                -/
+--------------------------------------------------------------------------------
+
 /-!
 ### Headers
 -/
 
 /-- A `h-char-sequence` of the C grammar. -/
-@[run_parser_attribute_hooks] def angleHeaderName := rawUntilCh '>'
+@[run_parser_attribute_hooks] def angleHeaderName :=
+   raw (takeUntilFn fun c => c == '>')
 
 syntax angleHeader := "<" angleHeaderName ">"
 
 /-- A `header-name` of the C grammar. -/
 syntax header := str <|> angleHeader
 
---------------------------------------------------------------------------------
-/-! ## Preprocessor Directives                                                -/
---------------------------------------------------------------------------------
+/-!
+### Commands
+-/
 
 namespace PP
 
@@ -873,11 +961,11 @@ syntax includeCmd := "#include " header
 attribute [ppCmd_parser] includeCmd
 
 /-- Define a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
-syntax defineCmd := "#define " ident (noWs "("  ident,*,?  "..."? ")")? line
+syntax defineCmd := "#define " rawIdent (noWs "("  rawIdent,*,?  "..."? ")")? line
 attribute [ppCmd_parser] defineCmd
 
 /-- Remove a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
-syntax undefCmd := "#undef " ident
+syntax undefCmd := "#undef " rawIdent
 attribute [ppCmd_parser] undefCmd
 
 /--
@@ -928,7 +1016,7 @@ The start of a C preprocessor conditional inclusion directive.
 
 Process the following branch if the identifier is a defined macro.
 -/
-syntax ifdefCmd := "#ifdef " ident
+syntax ifdefCmd := "#ifdef " rawIdent
 attribute [ppCmd_parser] ifdefCmd
 
 /--
@@ -936,7 +1024,7 @@ An else-if branch of a C preprocessor conditional inclusion block.
 
 Process the following branch if the identifier is *not* a defined macro.
 -/
-syntax ifndefCmd := "#ifndef " ident
+syntax ifndefCmd := "#ifndef " rawIdent
 attribute [ppCmd_parser] ifndefCmd
 
 /--
