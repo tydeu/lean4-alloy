@@ -1,10 +1,8 @@
-import Lib.Enum
+import Test.Enum
+import Test.RawStruct
 
-def testEnum : IO Unit := do
-  if myAdd .a .c = 8 then
-    IO.println "enum test passed"
-  else
-    throw <| IO.userError "enum test failed"
+open Test
 
 def allTests : IO Unit := do
-  testEnum
+  Enum.test
+  RawStruct.test
