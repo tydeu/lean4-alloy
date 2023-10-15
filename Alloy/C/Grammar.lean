@@ -862,7 +862,8 @@ syntax doWhileStmt := "do " cStmt " while " "(" cExpr,+ ")"
 attribute [cStmt_parser] doWhileStmt
 
 /-- A C [for](https://en.cppreference.com/w/c/language/for) loop. -/
-syntax forStmt := "for " "(" cExpr,* ";" cExpr,* ";" cExpr,* ")" cStmt
+syntax forStmt := "for "
+  "(" (atomic(declaration) <|> (cExpr,* ";")) cExpr,* ";" cExpr,* ")" cStmt
 attribute [cStmt_parser] forStmt
 
 /-!
