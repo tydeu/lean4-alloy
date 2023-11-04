@@ -70,11 +70,11 @@ partial def elabShimSyntaxCore (ext : ModuleEnvExtension Shim) (stx : Syntax) : 
   elabSyntaxWith stx fun
   | .atom info val => do
     let code := reprintLeaf val info
-    modifyEnv (ext.modifyState · (·.addCode code))
+    modifyEnv (ext.modifyState · (·.addCodeSnippet code))
     return stx
   | .ident info rawVal _ _ => do
     let code := reprintLeaf rawVal.toString info
-    modifyEnv (ext.modifyState · (·.addCode code))
+    modifyEnv (ext.modifyState · (·.addCodeSnippet code))
     return stx
   | .node _ kind args => do
     let elabFns := shimElabAttribute.getEntries (← getEnv) kind

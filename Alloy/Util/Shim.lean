@@ -163,9 +163,27 @@ protected def toString (self : Shim) : String :=
 
 instance : ToString Shim := ⟨Shim.toString⟩
 
-/-- Add some dangling code to the shim. -/
-def addCode (code : String) (self : Shim) : Shim :=
+/-- Add some code verbatim to the shim. -/
+@[inline] def addCode (code : String) (self : Shim) : Shim :=
+  {self with text := FileMap.ofString <| self.text.source ++ code}
+
+/-- Add a block of code to the shim. Appends a newline to the end. -/
+@[inline] def addCodeBlock (code : String) (self : Shim) : Shim :=
+  self.addCode <| code ++ "\n"
+
+/--
+Add some code verbatim to the shim.
+**Does not update `FileMap` positions.**
+-/
+@[inline] def addCodeSnippet (code : String) (self : Shim) : Shim :=
   {self with text.source := self.text.source ++ code}
+
+/--
+Update the `FileMap` of the shim
+(e.g., after a sequence of `addCodeSnippet` calls).
+-/
+@[inline] def updateFileMap (self : Shim) : Shim :=
+  {self with text := FileMap.ofString self.text.source}
 
 /-- Add a command syntax to the shim's syntax tree and rebuild the `FileMap`. -/
 def addCmd (stx : Syntax) (self : Shim) : Shim :=
