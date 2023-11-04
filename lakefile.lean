@@ -43,5 +43,6 @@ module_facet alloy.c mod : FilePath := do
 module_facet alloy.c.o mod : FilePath := do
   let oFile := mod.irPath "alloy.c.o"
   let cJob ← fetch <| mod.facet `alloy.c
-  let weakArgs := #["-I", (← getLeanIncludeDir).toString]
-  buildO s!"{mod.name} alloy" oFile cJob weakArgs mod.leancArgs "cc"
+  let weakArgs := #["-I", (← getLeanIncludeDir).toString] ++ mod.weakLeancArgs
+  let cc := (← IO.getEnv "CC").getD "cc"
+  buildO s!"{mod.name} alloy" oFile cJob weakArgs mod.leancArgs cc
