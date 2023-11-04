@@ -49,7 +49,7 @@ where
       withTraceNode `ShimElab.step (fun _ => return stx) do
         liftCoreM <| checkMaxHeartbeats "elaborator"
         if let some (decl, stxNew?) ← liftMacroM <| expandMacroImpl? (← getEnv) stx then
-          withInfoTreeContext (mkInfoTree := mkInfoTree decl stx) do
+          withInfoTreeContext (mkInfoTree := mkCommandElabInfoTree decl stx) do
             let stxNew ← liftMacroM <| liftExcept stxNew?
             withMacroExpansion stx stxNew do
               go stxNew
@@ -62,7 +62,8 @@ def elabSyntaxUsing? (stx : Syntax) : List (KeyedDeclsAttribute.AttributeEntry (
 | (elabFn::elabFns) => do
   let s ← get
   catchInternalId unsupportedSyntaxExceptionId
-    (withInfoTreeContext (mkInfoTree := mkInfoTree elabFn.declName stx) <| elabFn.value stx)
+    (withInfoTreeContext (mkInfoTree := mkCommandElabInfoTree elabFn.declName stx) do
+      elabFn.value stx)
     (fun _ => do set s; elabSyntaxUsing? stx elabFns)
 
 /-- Elaborate some shim code and return the produced syntax. -/
