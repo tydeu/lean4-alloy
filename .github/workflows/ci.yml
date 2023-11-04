@@ -1,26 +1,17 @@
 name: CI
 
-on: [ push, pull_request ]
+on:
+  push:
+    branches:
+      - master
+      - 'stage/**'
+  pull_request:
+    branches:
+      - master
 
 jobs:
-  skip_check:
-    name: Skip Check
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v4
-        with:
-          concurrent_skipping: 'same_content_newer'
-          skip_after_successful_duplicate: 'true'
-          paths_ignore: '["README.md", "LICENSE"]'
-
   build:
-    needs: skip_check
     name: ${{ matrix.name || 'Build' }}
-    if: ${{ needs.skip_check.outputs.should_skip != 'true' }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -34,16 +25,10 @@ jobs:
           os: macos-latest
         - name: Windows
           os: windows-latest
-          shell: msys2 {0}
+          shell: bash {0}
       # complete all jobs
       fail-fast: false
     steps:
-    - name: Install MSYS2 (Windows)
-      if: matrix.os == 'windows-latest'
-      uses: msys2/setup-msys2@v2
-      with:
-        path-type: inherit
-        install: curl unzip make mingw-w64-x86_64-gcc mingw-w64-x86_64-gmp
     - name: Install Elan
       shell: bash -euo pipefail {0}
       run: |
@@ -61,5 +46,16 @@ jobs:
       with:
         name: ${{ matrix.os }}
         path: build
-    - name: Test
+    - name: Test (Unix)
+      if: matrix.os != 'windows-latest'
+      run: ./test.sh
+    - name: Setup MSYS2 (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
+      with:
+        path-type: inherit
+        install: mingw-w64-x86_64-clang
+    - name: Test (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
       run: ./test.sh
