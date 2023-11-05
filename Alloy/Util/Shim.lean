@@ -3,6 +3,7 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
+import Lean.Syntax
 import Lean.Data.Position
 
 open Lean
@@ -79,25 +80,27 @@ between Lean source information of elements within the tree. Thus, it is very
 linear in its performance.
 -/
 partial def ShimSyntax.leanPosToShim? (stx : ShimSyntax)
-(leanPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option String.Pos := do
-  if let .node info _ args := stx then
-    let .synthetic shimHeadPos _ := info | failure
-    let mut headPos := shimHeadPos
-    for arg in args do
-      let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
-      if let some pos := leanPosToShim? arg leanPos headPos tailPos then
-        return pos
-      headPos := tailPos
-    failure
-  else
-    let leanHeadPos ← stx.getPos?
-    let leanTailPos ← stx.getTailPos?
-    if leanHeadPos ≤ leanPos && leanPos < leanTailPos then
-      let leanOff := leanPos - leanHeadPos
-      let shimLen := shimTailPos - shimHeadPos
-      let shimPos := shimHeadPos + ⟨min leanOff.byteIdx shimLen.byteIdx⟩
-      return shimPos
-    failure
+(leanPos : String.Pos) (includeStop := false) : Option String.Pos := do
+  go stx 0 0
+where
+  go stx shimHeadPos shimTailPos := do
+    if let .node info _ args := stx then
+      let .synthetic shimHeadPos _ := info | failure
+      let mut headPos := shimHeadPos
+      for arg in args do
+        let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
+        if let some pos := go arg headPos tailPos then
+          return pos
+        headPos := tailPos
+      failure
+    else
+      let leanRange ← stx.getRange?
+      if leanRange.contains leanPos includeStop then
+        let leanOff := leanPos - leanRange.start
+        let shimLen := shimTailPos - shimHeadPos
+        let shimPos := shimHeadPos + ⟨min leanOff.byteIdx shimLen.byteIdx⟩
+        return shimPos
+      failure
 
 /--
 Find the Lean `Syntax` leaf within the
@@ -110,37 +113,24 @@ syntax has not been re-ordered since it was tagged with source information
 (e.g., via `reprint`).
 -/
 partial def ShimSyntax.shimPosToLeanStx? (stx : ShimSyntax)
-(shimPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option Syntax := do
-  if let .node info _ args := stx then
-    let .synthetic shimHeadPos shimTailPos := info | failure
-    if shimHeadPos ≠ shimTailPos then -- e.g., null nodes
-      if shimHeadPos > shimPos then failure
-      if shimTailPos ≤ shimPos then failure
-    let mut headPos := shimHeadPos
-    for arg in args do
-      let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
-      if let some stx := shimPosToLeanStx? arg shimPos headPos tailPos then
+(shimPos : String.Pos) (includeStop := false) : Option Syntax :=
+  go stx 0 0
+where
+  go stx shimHead shimTail := do
+    if let .node info _ args := stx then
+      let .synthetic shimHead shimTail := info | failure
+      if shimHead ≠ shimTail then -- e.g., still enter null nodes
+        guard <| String.Range.contains ⟨shimHead, shimTail⟩ shimPos includeStop
+      let mut headPos := shimHead
+      for arg in args do
+        let tailPos := headPos + ⟨ShimSyntax.bsize arg⟩
+        if let some stx := go arg headPos tailPos then
+          return stx
+        headPos := tailPos
+    else
+      if String.Range.contains ⟨shimHead, shimTail⟩ shimPos includeStop then
         return stx
-      headPos := tailPos
-  else
-    if shimHeadPos ≤ shimPos && shimPos < shimTailPos then
-      return stx
-  failure
-
-/--
-Find the Lean position within the
-`ShimSyntax` corresponding to `shimPos` in the shim.
-See `shimPosToLeanStx?` for details.
--/
-partial def ShimSyntax.shimPosToLean? (stx : ShimSyntax)
-(shimPos : String.Pos) (shimHeadPos shimTailPos : String.Pos := 0) : Option String.Pos := do
-  let stx ← shimPosToLeanStx? stx shimPos shimHeadPos shimTailPos
-  let leanHeadPos ← stx.getPos?
-  let leanTailPos ← stx.getTailPos?
-  let shimOff := shimPos - shimHeadPos
-  let leanLen := leanTailPos - leanHeadPos
-  let leanPos := leanHeadPos + ⟨min shimOff.byteIdx leanLen.byteIdx⟩
-  return leanPos
+    failure
 
 /-- A shim -- an array of commands with shim source position information. -/
 structure Shim where
@@ -223,19 +213,12 @@ def ofCmds (cmds : Array Syntax) : Shim :=
 Find the position within the shim
 corresponding to the `leanPos` in the Lean source.
 -/
-def leanPosToShim? (self : Shim) (leanPos : String.Pos) : Option String.Pos := do
-  self.cmds.findSome? (·.leanPosToShim? leanPos)
+def leanPosToShim? (self : Shim) (leanPos : String.Pos) (includeStop := false) : Option String.Pos := do
+  self.cmds.findSome? (·.leanPosToShim? leanPos includeStop)
 
 /--
 Find the `Syntax` leaf within the shim's Lean source
 corresponding to the `shimPos` in the shim.
 -/
-def shimPosToLeanStx? (self : Shim) (shimPos : String.Pos) : Option Syntax :=
-  self.cmds.findSome? (·.shimPosToLeanStx? shimPos)
-
-/--
-Find the position within the shim's Lean source
-corresponding to the `shimPos` in the shim.
--/
-def shimPosToLean? (self : Shim) (shimPos : String.Pos) : Option String.Pos :=
-  self.cmds.findSome? (·.shimPosToLean? shimPos)
+def shimPosToLeanStx? (self : Shim) (shimPos : String.Pos) (includeStop := false) : Option Syntax :=
+  self.cmds.findSome? (·.shimPosToLeanStx? shimPos includeStop)

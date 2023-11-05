@@ -78,10 +78,10 @@ def decodeShimTokens
     let shimPos := shim.text.lspPosToUtf8Pos ⟨line, char⟩
     let some pos := shim.shimPosToLeanStx? shimPos >>= (·.getPos?)
       | continue -- Ditto
-    let shimTailPos := shim.text.source.prev <|
+    let shimTailPos :=
       shim.text.source.codepointPosToUtf8PosFrom shimPos <|
       shim.text.source.utf16PosToCodepointPosFrom len shimPos
-    let some tailPos := shim.shimPosToLeanStx? shimTailPos >>= (·.getTailPos?)
+    let some tailPos := shim.shimPosToLeanStx? shimTailPos (includeStop := true) >>= (·.getTailPos?)
       | continue
     unless pos < tailPos && beginPos ≤ pos && tailPos ≤ endPos do
       continue

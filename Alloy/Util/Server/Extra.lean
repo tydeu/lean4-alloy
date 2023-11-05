@@ -10,28 +10,23 @@ open Lean Server JsonRpc RequestM
 
 namespace Alloy
 
-def Shim.leanPosToLsp? (self : Shim) (leanPos : String.Pos) : Option Lsp.Position := do
-  self.text.utf8PosToLspPos (← self.leanPosToShim? leanPos)
+@[inline] def lspRangeToUtf8Range (text : FileMap) (range : Lsp.Range) : String.Range :=
+  ⟨text.lspPosToUtf8Pos range.start, text.lspPosToUtf8Pos range.end⟩
 
-def Shim.lspPosToLean? (self : Shim) (shimPos : Lsp.Position) : Option String.Pos := do
-  self.shimPosToLean? (self.text.lspPosToUtf8Pos shimPos)
+@[inline] def utf8RangeToLspRange (text : FileMap) (range : String.Range) : Lsp.Range :=
+  ⟨text.utf8PosToLspPos range.start, text.utf8PosToLspPos range.stop⟩
 
-def Shim.posToLeanLsp? (self : Shim) (shimPos : String.Pos) (leanText : FileMap) : Option Lsp.Position := do
-  leanText.utf8PosToLspPos (← self.shimPosToLean? shimPos)
+def Shim.leanPosToLsp? (self : Shim) (leanPos : String.Pos) (includeStop := false) : Option Lsp.Position := do
+  self.text.utf8PosToLspPos (← self.leanPosToShim? leanPos includeStop)
 
-def Shim.lspPosToLeanLsp? (self : Shim) (shimPos : Lsp.Position) (leanText : FileMap) : Option Lsp.Position := do
-  leanText.utf8PosToLspPos (← self.lspPosToLean? shimPos)
-
-def Shim.lspRangeToLean? (self : Shim) (shimRange : Lsp.Range) : Option String.Range := do
-  let shimHead := self.text.lspPosToUtf8Pos shimRange.start
-  let leanHead ← self.shimPosToLeanStx? shimHead >>= (·.getPos?)
-  let shimTail := self.text.source.prev (self.text.lspPosToUtf8Pos shimRange.end)
-  let leanTail ← self.shimPosToLeanStx? shimTail >>= (·.getTailPos?)
+def Shim.utf8RangeToLean? (self : Shim) (shimRange : String.Range) : Option String.Range := do
+  let leanHead ← self.shimPosToLeanStx? shimRange.start >>= (·.getPos?)
+  let leanTail ← self.shimPosToLeanStx? shimRange.stop (includeStop := true) >>= (·.getTailPos?)
   return ⟨leanHead, leanTail⟩
 
 def Shim.lspRangeToLeanLsp? (self : Shim) (shimRange : Lsp.Range) (leanText : FileMap) : Option Lsp.Range := do
-  let range ← inline <| self.lspRangeToLean? shimRange
-  return ⟨leanText.utf8PosToLspPos range.start, leanText.utf8PosToLspPos range.stop⟩
+  let r ← self.utf8RangeToLean? (lspRangeToUtf8Range self.text shimRange)
+  return utf8RangeToLspRange leanText r
 
 /-- Fallback to returning `resp` if `act` errors. Also, log the error message. -/
 def withFallbackResponse (resp : RequestTask α) (act : RequestM (RequestTask α)) : RequestM (RequestTask α) :=

@@ -41,9 +41,7 @@ def handleCompletion (p : CompletionParams)
   let abortedX := pure <| Task.pure <| .ok { items := #[{label := "-"}], isIncomplete := true }
   bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) (abortedX := abortedX) fun snap => do
     let shim := getLocalShim snap.env
-    let prevCharPos := text.source.prev cursorPos
-    let some shimCharPos := shim.leanPosToShim? prevCharPos | return prev
-    let shimCursorPos := shim.text.utf8PosToLspPos <| shim.text.source.next shimCharPos
+    let some shimCursorPos := shim.leanPosToLsp? cursorPos (includeStop := true) | return prev
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
