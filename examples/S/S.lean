@@ -84,6 +84,7 @@ def getGlobalString : BaseIO String := {
   return lean_io_result_mk_ok(g_s.m_s);
 }
 
+set_option trace.Elab.info true
 alloy c extern "lean_S_update_global"
 def updateGlobalS (s : @& S) : BaseIO Unit := {
   if (g_s.m_s != NULL) {

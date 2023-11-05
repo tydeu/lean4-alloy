@@ -7,19 +7,20 @@ import Alloy.C.Shim
 import Alloy.C.Server.Worker
 import Alloy.Util.Server
 
-open Lean Server Lsp RequestM JsonRpc
+open Lean Server Lsp RequestM JsonRpc Snapshots
 
 namespace Alloy.C
 
 def handleLocation (p : Lsp.Position)
 (method : String) [LsCall method TextDocumentPositionParams α]
- (prev : RequestTask α) (f : Shim → α → α → RequestM α) : RequestM (RequestTask α) := do
+ (prev : RequestTask α) (f : Snapshot → Shim → α → α → RequestM α) : RequestM (RequestTask α) := do
   let doc ← readDoc
   let text := doc.meta.text
   let leanHoverPos := text.lspPosToUtf8Pos p
   bindWaitFindSnap doc (·.endPos > leanHoverPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
-    let some shimHoverPos := shim.leanPosToLsp? leanHoverPos | return prev
+    let some shimHoverPos := findShimPos? snap.infoTree leanHoverPos | return prev
+    let shimHoverPos := shim.text.utf8PosToLspPos shimHoverPos
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
@@ -28,7 +29,7 @@ def handleLocation (p : Lsp.Position)
             textDocument := ⟨nullUri⟩,
             position := shimHoverPos
           }
-      mergeResponses task prev (f shim)
+      mergeResponses task prev (f snap shim)
 
 /-! ## Completion Support -/
 
@@ -41,7 +42,8 @@ def handleCompletion (p : CompletionParams)
   let abortedX := pure <| Task.pure <| .ok { items := #[{label := "-"}], isIncomplete := true }
   bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) (abortedX := abortedX) fun snap => do
     let shim := getLocalShim snap.env
-    let some shimCursorPos := shim.leanPosToLsp? cursorPos (includeStop := true) | return prev
+    let some shimCursorPos := findShimPos? snap.infoTree cursorPos true | return prev
+    let shimCursorPos := shim.text.utf8PosToLspPos shimCursorPos
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
@@ -55,7 +57,7 @@ def handleCompletion (p : CompletionParams)
               position := shimCursorPos
             }
       mergeResponses task prev fun shimResult leanResult =>
-        let trRange? range := shim.lspRangeToLeanLsp? range text
+        let trRange? := shimLspRangeToLeanLsp? shim text snap.infoTree
         let shimItems := shimResult.items.map fun item =>
           {item with
             textEdit? := item.textEdit?.bind fun edit =>
@@ -75,10 +77,11 @@ def handleCompletion (p : CompletionParams)
 def handleHover (p : HoverParams)
 (prev : RequestTask (Option Hover)) : RequestM (RequestTask (Option Hover)) := do
   have : LsCall "textDocument/hover" TextDocumentPositionParams (Option Hover) := {}
-  handleLocation p.position "textDocument/hover" prev fun shim shimHover? leanHover? => do
+  handleLocation p.position "textDocument/hover" prev fun snap shim shimHover? leanHover? => do
     let some shimHover := shimHover? | return leanHover?
     let text := (← readDoc).meta.text
-    let range? := shimHover.range? >>= (shim.lspRangeToLeanLsp? · text)
+    let range? := shimHover.range? >>= fun range =>
+      shimLspRangeToLeanLsp? shim text snap.infoTree range
     if let some leanHover := leanHover? then
       let v := s!"{leanHover.contents.value}\n\n---\n\n{shimHover.contents.value}"
       -- We use the shim range here because it is generally not too big or too small
@@ -92,12 +95,12 @@ def handleGoto
 (method : String) [LsCall method TextDocumentPositionParams (Array LocationLink)]
 (p : TextDocumentPositionParams) (prev : RequestTask (Array LocationLink))
 : RequestM (RequestTask (Array LocationLink)) := do
-  handleLocation p.position method prev fun shim shimLinks leanLinks => do
+  handleLocation p.position method prev fun snap shim shimLinks leanLinks => do
     let text := (← readDoc).meta.text
     let originSelectionRange? := leanLinks.findSome? (·.originSelectionRange?)
     let shimLinks := shimLinks.filterMap fun link =>
       if isNullUri link.targetUri then
-        if let some range := shim.lspRangeToLeanLsp? link.targetRange text then
+        if let some range := shimLspRangeToLeanLsp? shim text snap.infoTree link.targetRange then
           some {link with
             originSelectionRange?
             targetUri := p.textDocument.uri

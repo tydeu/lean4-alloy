@@ -7,7 +7,7 @@ import Alloy.C.Shim
 import Alloy.C.Server.Worker
 import Alloy.Util.Server
 
-open Lean Server Lsp RequestM
+open Lean Elab Server Lsp RequestM
 
 namespace Alloy.C
 
@@ -64,7 +64,7 @@ def decodeLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.run do
   return entries
 
 def decodeShimTokens
-(data : Array Nat) (shim : Shim) (text : FileMap)
+(data : Array Nat) (shim : Shim) (tree : InfoTree) (text : FileMap)
 (beginPos endPos : String.Pos) (types modifiers : Array String)
 : Array SemanticTokenEntry := Id.run do
   let mut line := 0
@@ -76,12 +76,12 @@ def decodeShimTokens
     line := line + deltaLine
     char := if deltaLine = 0 then char + deltaStart else deltaStart
     let shimPos := shim.text.lspPosToUtf8Pos ⟨line, char⟩
-    let some pos := shim.shimPosToLeanStx? shimPos >>= (·.getPos?)
+    let some pos := findShimStx? tree shimPos >>= (·.getPos?)
       | continue -- Ditto
     let shimTailPos :=
       shim.text.source.codepointPosToUtf8PosFrom shimPos <|
       shim.text.source.utf16PosToCodepointPosFrom len shimPos
-    let some tailPos := shim.shimPosToLeanStx? shimTailPos (includeStop := true) >>= (·.getTailPos?)
+    let some tailPos := findShimStx? tree shimTailPos (includeStop := true) >>= (·.getTailPos?)
       | continue
     unless pos < tailPos && beginPos ≤ pos && tailPos ≤ endPos do
       continue
@@ -113,8 +113,8 @@ def handleSemanticTokens
         ls.withTextDocument nullUri shim.toString "c" do
           ls.call "textDocument/semanticTokens/full" ⟨⟨nullUri⟩⟩
       mergeResponses task prev fun shimTokens leanTokens =>
-        let shimEntries := decodeShimTokens shimTokens.data
-          shim doc.meta.text beginPos endPos tokenTypes tokenModifiers
+        let shimEntries := decodeShimTokens shimTokens.data shim
+          snap.infoTree doc.meta.text beginPos endPos tokenTypes tokenModifiers
         let leanEntries := decodeLeanTokens leanTokens.data
         -- Stable sort the combined entries (Lean first)
         let entries := leanEntries ++ shimEntries

@@ -66,22 +66,47 @@ def elabSyntaxUsing? (stx : Syntax) : List (KeyedDeclsAttribute.AttributeEntry (
       elabFn.value stx)
     (fun _ => do set s; elabSyntaxUsing? stx elabFns)
 
+structure ShimInfoValue where
+  shimRange : String.Range
+  deriving TypeName
+
+@[inline] def mkShimInfo (ref : Syntax) (shimRange : String.Range) : Info :=
+  .ofCustomInfo <| .mk ref <| .mk <| ShimInfoValue.mk shimRange
+
+@[inline] def toShimInfo? (info : Info) : Option (Syntax × String.Range) := do
+  let .ofCustomInfo {stx, value} := info | failure
+  let {shimRange} ← value.get? ShimInfoValue
+  return (stx, shimRange)
+
+@[inline] def getShimPos [MonadEnv m] [Monad m] (ext : ModuleEnvExtension Shim) : m String.Pos := do
+  return ext.getState (← getEnv) |>.text.source.endPos
+
+def addShimLeaf (ext : ModuleEnvExtension Shim) (stx : Syntax)  (code : String) : ShimElabM PUnit := do
+  let startPos ← getShimPos ext
+  modifyEnv (ext.modifyState · (·.addCodeSnippet code))
+  let endPos ← getShimPos ext
+  pushInfoLeaf <| mkShimInfo stx ⟨startPos, endPos⟩
+
 /-- Elaborate some shim code and return the produced syntax. -/
 partial def elabShimSyntaxCore (ext : ModuleEnvExtension Shim) (stx : Syntax) : ShimElabM ShimSyntax :=
   elabSyntaxWith stx fun
   | .atom info val => do
     let code := reprintLeaf val info
-    modifyEnv (ext.modifyState · (·.addCodeSnippet code))
+    addShimLeaf ext stx code
     return stx
   | .ident info rawVal _ _ => do
     let code := reprintLeaf rawVal.toString info
-    modifyEnv (ext.modifyState · (·.addCodeSnippet code))
+    addShimLeaf ext stx code
     return stx
   | .node _ kind args => do
     let elabFns := shimElabAttribute.getEntries (← getEnv) kind
     if let some r ← elabSyntaxUsing? stx elabFns then
       return r
-    let startPos := ext.getState (← getEnv) |>.text.source.endPos
+    let startPos ← getShimPos ext
+    -- let mkTree trees := do
+    --   let endPos ← getShimPos ext
+    --   return .node (mkShimInfo stx ⟨startPos, endPos⟩) trees
+    -- withInfoTreeContext (mkInfoTree := mkTree) do
     let args ←
       if kind = choiceKind then id do
         let some arg0 := args[0]?
@@ -100,7 +125,7 @@ partial def elabShimSyntaxCore (ext : ModuleEnvExtension Shim) (stx : Syntax) : 
         return args'
       else
         args.mapM fun arg => elabShimSyntaxCore ext arg
-    let endPos := ext.getState (← getEnv) |>.text.source.endPos
+    let endPos ← getShimPos ext
     return Syntax.node (.synthetic startPos endPos) kind args
   | .missing =>
     throwError s!"shim syntax '{stx.getKind}' lacks a custom elaborator and could not be reprinted"
