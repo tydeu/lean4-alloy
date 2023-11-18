@@ -16,8 +16,8 @@ abbrev Hole := TSyntax ``Term.hole
 abbrev BinderIdent := TSyntax ``Term.binderIdent
 abbrev BinderModifier := TSyntax [``Term.binderTactic, ``Term.binderDefault]
 
-def mkHoleFrom (ref : Syntax) : Hole :=
-  mkNode ``Term.hole #[mkAtomFrom ref "_"]
+@[inline] def mkHoleFrom (ref : Syntax) (canonical := false) : Hole :=
+  ⟨mkHole ref canonical⟩
 
 instance : Coe Hole Term where
   coe s := ⟨s.raw⟩
@@ -43,7 +43,7 @@ structure BinderSyntaxView where
   ref : Syntax
   id : BinderIdent
   type : Term
-  info : BinderInfo
+  info : BinderInfo := .default
   modifier? : Option BinderModifier := none
 
 def expandOptType (ref : Syntax) (optType : Syntax) : Term :=

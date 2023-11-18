@@ -48,31 +48,27 @@ alloy c translator RawY := {
   ofLean := `Y_of_lean
 }
 
-alloy c section
-LEAN_EXPORT lean_obj_res raw_Y_mk(lean_obj_arg y, lean_obj_arg u) {
+alloy c extern impl RawY.mk data := {
   Y* rawY = malloc(sizeof(Y));
-  rawY->n = lean_ctor_get_uint32(y, 0);
-  rawY->m = lean_ctor_get_uint32(y, sizeof(uint32_t));
+  rawY->n = lean_ctor_get_uint32(data, 0);
+  rawY->m = lean_ctor_get_uint32(data, sizeof(uint32_t));
   return to_lean<RawY>(rawY);
 }
 
-LEAN_EXPORT uint32_t raw_Y_n(lean_obj_arg y) {
+noncomputable def RawY.n (y : RawY) := y.data.n
+
+alloy c extern impl RawY.n y :=
   return of_lean<RawY>(y)->n;
-}
-LEAN_EXPORT uint32_t raw_Y_m(lean_obj_arg y) {
+
+noncomputable def RawY.m (y : RawY) := y.data.m
+
+alloy c extern impl RawY.m y :=
   return of_lean<RawY>(y)->m;
-}
-end
-
-attribute [extern "raw_Y_mk"] RawY.mk
-
-@[extern "raw_Y_n"] def RawY.n (y : RawY) := y.data.n
-@[extern "raw_Y_m"] def RawY.m (y : RawY) := y.data.m
 
 def RawY.dataImpl (y : RawY) : PureY :=
   {n := y.n, m := y.m}
 
-theorem RawY.dataImpl_eq_data (y : RawY) : y.data = y.dataImpl := rfl
+theorem RawY.dataImpl_eq_data (y : RawY) : y.dataImpl = y.data := rfl
 
 attribute [implemented_by RawY.dataImpl] RawY.data
 
