@@ -13,24 +13,11 @@ typedef struct {
   uint32_t n, m;
 } Y;
 
-static lean_external_class * g_class_raw_Y = NULL;
-
 static inline void Y_finalize(void* ptr) {
-  free((Y*)ptr);
+  free(ptr);
 }
 
 static inline void noop_foreach(void *mod, b_lean_obj_arg fn) {}
-
-static inline lean_obj_res Y_to_Lean(Y* y) {
-  if (g_class_raw_Y == NULL) {
-    g_class_raw_Y = lean_register_external_class(Y_finalize, noop_foreach);
-  }
-  return lean_alloc_external(g_class_raw_Y, y);
-}
-
-static inline Y* Y_of_lean(lean_obj_arg y) {
-  return (Y*)(lean_get_external_data(y));
-}
 end
 
 structure PureY where
@@ -43,9 +30,9 @@ structure RawY where
   -- this is unsafe hack around lean4#2292 for testing purposes
   unit : Unit
 
-alloy c translator RawY := {
-  toLean := `Y_to_Lean
-  ofLean := `Y_of_lean
+alloy c extern_type RawY => Y := {
+  finalize := `Y_finalize
+  foreach := `noop_foreach
 }
 
 alloy c extern impl RawY.mk data := {

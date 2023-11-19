@@ -36,7 +36,7 @@ static S g_s = {0, 0, NULL};
 
 end
 
-alloy c extern_type S => S := {
+alloy c opaque_extern_type S => S := {
   foreach := `S_foreach
   finalize := `S_finalize
 }
