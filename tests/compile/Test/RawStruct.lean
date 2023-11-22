@@ -16,8 +16,6 @@ typedef struct {
 static inline void Y_finalize(void* ptr) {
   free(ptr);
 }
-
-static inline void noop_foreach(void *mod, b_lean_obj_arg fn) {}
 end
 
 structure PureY where
@@ -32,7 +30,6 @@ structure RawY where
 
 alloy c extern_type RawY => Y := {
   finalize := `Y_finalize
-  foreach := `noop_foreach
 }
 
 alloy c extern impl RawY.mk data := {
@@ -71,7 +68,7 @@ def test' :=
   addPureY {n := 4, m := 2}
 
 def test : IO Unit :=
-  let r := addPureY {n := 4, m := 2}
+  let r := test'
   if r = 6 then
     IO.println "raw struct test passed"
   else
