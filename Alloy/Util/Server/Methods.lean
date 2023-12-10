@@ -15,6 +15,7 @@ class LsClientNote (method : String) (α : outParam $ Type u)
   extends FromJson α
 
 @[default_instance low] instance : LsClientNote m Json := {}
+instance : LsClientNote "textDocument/publishDiagnostics" PublishDiagnosticsParams := {}
 
 set_option synthInstance.checkSynthOrder false in
 /-- An LSP client to server notification method. -/

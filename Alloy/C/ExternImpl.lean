@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Alloy.C.IR
-import Alloy.C.Shim
+import Alloy.C.ShimElab
 import Alloy.Util.Syntax
 import Alloy.Util.Binder
 import Lean.Compiler.NameMangling
