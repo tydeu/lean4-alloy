@@ -28,9 +28,38 @@ structure LsState where
   responseMap : RBMap RequestID (Promise (Except (ResponseError Json) Json)) compare := {}
   error? : Option IO.Error := none
 
+/-- A function to handle a LSP notification. -/
+abbrev NotificationHandler :=
+  Option Json.Structured → BaseIO Unit
+
+/-- Construct a JSON notification handler from a well-typed client handler. -/
+@[inline] def mkClientNotificationHandler
+  [FromJson α] (method : String)
+  [LsClientNote method α] (handle : α → BaseIO Unit)
+: NotificationHandler := fun params? => do
+  match fromJson? <| toJson params? with
+  | .ok v => handle v
+  | .error e => return panic! s!"ill-formatted '{method}' notification: {e}"
+
 /-- A method-handler map. -/
 abbrev NotificationHandlerMap :=
-  RBMap String (Option Json.Structured → BaseIO Unit) compare
+  RBMap String NotificationHandler compare
+
+namespace NotificationHandlerMap
+
+@[inline] def empty : NotificationHandlerMap :=
+  RBMap.empty
+
+@[inline] def toRBMap (self : NotificationHandlerMap) : RBMap String NotificationHandler compare :=
+  self
+
+@[inline] def insert (self : NotificationHandlerMap)
+  [FromJson α] (method : String) [LsClientNote method α] (handle : α → BaseIO Unit) :=
+    self.toRBMap.insert method <| mkClientNotificationHandler method handle
+
+end NotificationHandlerMap
+
+deriving instance Inhabited for Json.Structured
 
 /-- A running language server process. -/
 structure LsWorker where
@@ -50,16 +79,15 @@ def stdin (self : LsWorker) : IO.FS.Stream :=
 def notify (self : LsWorker) (method : String) [LsServerNote method α] (param : α) : IO Unit := do
   self.stdin.writeLspNotification {method, param}
 
-/-- Add a handler function for a client notifications of `method`. -/
-def addNotificationHandler (self : LsWorker) [FromJson α]
+/-- Set handler function for a client notifications of `method`. -/
+def setNotificationHandler (self : LsWorker) [FromJson α]
 (method : String) [LsClientNote method α] (handle : α → BaseIO Unit) : BaseIO Unit := do
-  let handle json? := do if let .ok v := fromJson? <| toJson json? then handle v
   self.notificationHandlers.atomically (·.modify (·.insert method handle))
 
 /-- Execute `act` with the client notification handler `handle` set. -/
 def withNotificationHandler [Monad m] [MonadLiftT BaseIO m] [MonadFinally m]
 (self : LsWorker) (method : String) [LsClientNote method α] (handle : α → BaseIO Unit) (act : m β) : m β := do
-  self.addNotificationHandler method handle
+  self.setNotificationHandler method handle
   try
     act
   finally

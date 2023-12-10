@@ -25,12 +25,23 @@ open Lean
 
 namespace Alloy.C
 
-initialize serverMux : IO.Mutex (LOption LsWorker) ← IO.Mutex.new .undef
+/-- Alloy `clangd` language server configuration. -/
+structure ServerConfig where
+  /--
+  C flags to configure the `clangd` server with.
+  Alloy adds Lean's include directory to the include path by default.
+  -/
+  flags : Array String
+  /-- Log level of the `clangd` language server. -/
+  logging : String
+  deriving Inhabited
 
-def initLs? : BaseIO (Option LsWorker) :=
+/-- Attempt to initialize the Alloy `clangd` server. -/
+def initLs? (cfg : ServerConfig) : BaseIO (Option LsWorker) :=
   let act := some <$> do
-    /- NOTE: We follow Lean's example and do not limit completion results. -/
-    let args := #["--log=error", "--limit-results=0", "--header-insertion=never"]
+    let args := #[s!"--log={cfg.logging}",
+      -- We follow Lean's example and do not limit completion results.
+      "--limit-results=0", "--header-insertion=never"]
     let errorFilter (line : String) :=
       -- HACK: Filter "Trying to remove file from TUScheduler that is not tracked: <file>" errors
       -- TODO: Actually fix the underlying cause -- `withTextDocument` race conditions
@@ -62,7 +73,7 @@ def initLs? : BaseIO (Option LsWorker) :=
       }
       initializationOptions? := some <| toJson (α := Clangd.InitializationOptions) {
         -- Add Lean's include directory to `clangd`'s include path
-        fallbackFlags? := some #["-I", (← Lean.getBuildDir) / "include" |>.toString]
+        fallbackFlags? := some cfg.flags
         clangdFileStatus? := true
       }
     }
@@ -71,11 +82,20 @@ def initLs? : BaseIO (Option LsWorker) :=
       |>.catchExceptions (fun _ => pure ())
     return none
 
+/-- Configuration with which to start Alloy's C language server. -/
+initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
+  flags := #["-I", (← Lean.getBuildDir) / "include" |>.toString]
+  logging := "error"
+}
+
+initialize serverMux : IO.Mutex (LOption LsWorker) ← IO.Mutex.new .undef
+
+/-- Return the C language server. Tries to start it exactly once. -/
 def getLs? : BaseIO (Option LsWorker) :=
   serverMux.atomically fun ref => ref.get >>= fun
     | .none => return none
     | .some ls => return some ls
     | .undef => do
-      let ls? ← initLs?
+      let ls? ← initLs? (← serverConfig.get)
       ref.set ls?.toLOption
       return ls?
