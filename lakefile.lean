@@ -15,10 +15,9 @@ package alloy
 lean_lib Alloy
 
 @[default_target]
-lean_exe alloy {
+lean_exe alloy where
   root := `Main
   supportInterpreter := true
-}
 
 --------------------------------------------------------------------------------
 -- # Module Facets

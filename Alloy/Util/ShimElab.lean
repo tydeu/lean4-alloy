@@ -47,7 +47,7 @@ where
   go stx :=
     withRef stx <| withIncRecDepth <| withFreshMacroScope do
       withTraceNode `ShimElab.step (fun _ => return stx) do
-        liftCoreM <| checkMaxHeartbeats "elaborator"
+        liftCoreM <| checkSystem "elaborator"
         if let some (decl, stxNew?) ← liftMacroM <| expandMacroImpl? (← getEnv) stx then
           withInfoTreeContext (mkInfoTree := mkCommandElabInfoTree decl stx) do
             let stxNew ← liftMacroM <| liftExcept stxNew?

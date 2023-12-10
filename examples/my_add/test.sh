@@ -1,6 +1,6 @@
 set -ex
-rm -rf build
+rm -rf .lake
 LAKE=${LAKE:-lake}
 $LAKE build -U
 $LAKE build Test -v
-build/bin/my_add
+.lake/build/bin/my_add

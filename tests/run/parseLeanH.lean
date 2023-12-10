@@ -3,21 +3,27 @@ import Lean.Elab.Command
 
 open Lean Parser Elab Command
 
-/- By  Mario: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Undefine.20lambda/near/393694214-/
-def Lean.Parser.Trie.isEmpty {α} (t : Trie α) : Bool := t matches .Node none .leaf
-partial def Lean.Parser.Trie.erase {α} (t : Trie α) (s : String) : Trie α :=
-  let rec loop : Trie α → String.Pos → Option (Trie α)
-    | ⟨val, m⟩, i =>
-      match s.atEnd i with
-      | true  => some (Trie.Node none m)
-      | false => do
-        let c := s.get i
-        let i := s.next i
-        let t ← m.find compare c
-        let t ← loop t i
-        let m := if t.isEmpty then m.erase compare c else m.insert compare c t
-        some ⟨val, m⟩
-  (loop t 0).getD t
+partial def Lean.Data.Trie.erase {α} (t : Trie α) (s : String) : Trie α :=
+  let rec loop : Nat → Trie α → Trie α
+    | i, leaf v =>
+      if i < s.utf8ByteSize then leaf v else leaf none
+    | i, node1 v c' t' =>
+      if h : i < s.utf8ByteSize then
+        if c' = s.getUtf8Byte i h then
+          loop (i+1) t'
+        else
+          node1 v c' t'
+      else
+        node1 none c' t'
+    | i, node v cs ts =>
+      if h : i < s.utf8ByteSize then
+        let c := s.getUtf8Byte i h
+        match cs.findIdx? (· == c) with
+        | none => node v cs ts
+        | some idx => node v cs <| ts.setD idx <| loop (i+1) (ts.get! idx)
+      else
+        node none cs ts
+  loop 0 t
 
 syntax "LEAN_CASSERT" "(" cExpr ")" ";" : cCmd
 syntax "extern" str "{" : cCmd

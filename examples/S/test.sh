@@ -1,6 +1,6 @@
 set -ex
-rm -rf build
+rm -rf .lake
 LAKE=${LAKE:-lake}
 $LAKE build -U
 $LAKE build Test -v
-#build/bin/s # TODO: Segfaults for some reason
+#.lake/build/bin/s # TODO: Segfaults for some reason

@@ -15,6 +15,6 @@ pushd tests/compile
 ./test.sh
 popd
 
-find tests/run -type f -exec ${LAKE:-lake} env lean {} \;
+find tests/run -type f | xargs -n1 ${LAKE:-lake} env lean
 
 echo "all done"
