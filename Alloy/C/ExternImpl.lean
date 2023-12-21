@@ -26,10 +26,9 @@ def mkParams (fnType : Lean.Expr)
     let mut bv? := none
     if let .forallE name ty body info := fnType then
       fnType := body
-      -- Attempt to match the parameter to a following binder of the same nams
+      -- Attempt to match the parameter to a following binder of the same name
       for h : i in [viewIdx:bvs.size] do
-        have := h.upper
-        let bv := bvs[i]
+        let bv := bvs[i]'h.upper
         if bv.id.raw.getId = name then
           bv? := some bv
           viewIdx := i + 1
@@ -92,7 +91,7 @@ def elabExternImpl (exTk : Syntax) (sym? : Option StrLit) (id : Ident) (bvs : Ar
   let fn ← MonadRef.withRef Syntax.missing <| `(function|
     LEAN_EXPORT%$exTk $ty:cTypeSpec $cId:ident($params:params) $body:compStmt
   )
-  let cmd ← `(set_option linter.unusedVariables false in alloy c section $fn:function end)
+  let cmd ← `(alloy c section $fn:function end)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
 
 
