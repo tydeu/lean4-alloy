@@ -5,29 +5,31 @@ Authors: Mac Malone
 -/
 import Alloy.C.Shim
 import Alloy.C.Server.Worker
-import Alloy.Util.Server
 
 open Lean Server Lsp RequestM JsonRpc
 
 namespace Alloy.C
 
-def handleLocation (p : Lsp.Position)
-(method : String) [LsCall method TextDocumentPositionParams α]
- (prev : RequestTask α) (f : Shim → α → α → RequestM α) : RequestM (RequestTask α) := do
+def handleLocation
+  (p : Lsp.Position)
+  (method : String) [LsCall method TextDocumentPositionParams α]
+  (prev : RequestTask α)
+  (f : Shim → α → α → RequestM α)
+: RequestM (RequestTask α) := do
   let doc ← readDoc
   let text := doc.meta.text
-  let leanHoverPos := text.lspPosToUtf8Pos p
-  bindWaitFindSnap doc (·.endPos > leanHoverPos) (notFoundX := pure prev) fun snap => do
+  let leanPos := text.lspPosToUtf8Pos p
+  bindWaitFindSnap doc (·.endPos > leanPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
-    let some shimHoverPos := shim.leanPosToLsp? leanHoverPos | return prev
+    let some shimPos := shim.leanPosToLsp? leanPos | return prev
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
-        ls.withTextDocument nullUri shim.toString "c" do
-          ls.call method {
-            textDocument := ⟨nullUri⟩,
-            position := shimHoverPos
-          }
+        ls.setShimDocument doc.meta.version shim.toString "c"
+        ls.call method {
+          textDocument := ⟨nullUri⟩,
+          position := shimPos
+        }
       mergeResponses task prev (f shim)
 
 /-! ## Completion Support -/
@@ -45,15 +47,12 @@ def handleCompletion (p : CompletionParams)
     let some ls ← getLs? | return prev
     withFallbackResponse prev do
       let task ← do
-        let ready ← IO.Promise.new
-        ls.withNotificationHandler "textDocument/clangd.fileStatus"
-          (fun {state,..} => do if state = "idle" then ready.resolve ()) do
-          ls.withTextDocument nullUri shim.toString "c" do
-            IO.wait ready.result
-            ls.call "textDocument/completion" {
-              textDocument := ⟨nullUri⟩,
-              position := shimCursorPos
-            }
+        ls.setShimDocument doc.meta.version shim.toString "c"
+        ls.readyShimDocument (timeout := 1000)
+        ls.call "textDocument/completion" {
+          textDocument := ⟨nullUri⟩,
+          position := shimCursorPos
+        }
       mergeResponses task prev fun shimResult leanResult =>
         let trRange? range := shim.lspRangeToLeanLsp? range text
         let shimItems := shimResult.items.map fun item =>

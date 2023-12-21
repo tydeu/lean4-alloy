@@ -109,9 +109,8 @@ def handleSemanticTokens
     let some provider := ls.capabilities.semanticTokensProvider? | return prev
     let {tokenTypes, tokenModifiers} := provider.legend
     withFallbackResponse prev do
-      let task ←
-        ls.withTextDocument nullUri shim.toString "c" do
-          ls.call "textDocument/semanticTokens/full" ⟨⟨nullUri⟩⟩
+      ls.setShimDocument doc.meta.version shim.toString "c"
+      let task ← ls.call "textDocument/semanticTokens/full" ⟨⟨nullUri⟩⟩
       mergeResponses task prev fun shimTokens leanTokens =>
         let shimEntries := decodeShimTokens shimTokens.data
           shim doc.meta.text beginPos endPos tokenTypes tokenModifiers

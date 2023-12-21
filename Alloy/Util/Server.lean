@@ -11,6 +11,13 @@ open Lean Server Lsp
 
 namespace Alloy
 
+/-- Wait at most `timeout` for the task to finish, then return its result or `none`. -/
+def wait? (t : Task α) (timeout : UInt32) : BaseIO (Option α) := do
+  let result? ← IO.Promise.new
+  discard <| BaseIO.mapTask (fun a => result?.resolve <| some a) t
+  discard <| IO.asTask do IO.sleep timeout; result?.resolve none
+  IO.wait result?.result
+
 def nullPath : System.FilePath :=
   if System.Platform.isWindows then
     "/nul"

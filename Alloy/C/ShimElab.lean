@@ -9,36 +9,25 @@ import Alloy.C.Server
 open Lean Lsp Elab Command
 
 register_option Alloy.shimDiagnostics : Bool := {
-  defValue := false
-  descr := "Whether Alloy should fetch shim language server diagnostics"
+  defValue := true
+  descr := "Should Alloy fetch shim language server diagnostics?"
 }
 
-register_option Alloy.shimDiagnosticsTimeout : Nat := {
+register_option Alloy.shimDiagnostics.serverOnly : Bool := {
+  defValue := true
+  descr :=
+    "Should Alloy fetch shim diagnostics only if the shim language server " ++
+    "is already started (e.g., when editing the file in an interactive context)?"
+}
+
+register_option Alloy.shimDiagnostics.timeout : Nat := {
   defValue := 1000
   descr :=
     "Max time Alloy should delay command elaboration " ++
-    "to wait for shim language server diagnostics"
+    "to wait for shim diagnostics"
 }
 
-namespace Alloy
-
-def LsWorker.collectClangdDiagnostics
- (ls : LsWorker) (uri : DocumentUri) (text languageId : String) (version := 0)
- (timeout : UInt32 := 1000)
-: IO (Array Diagnostic) := do
-  let diagnostics ← IO.Mutex.new #[]
-  ls.withNotificationHandler "textDocument/publishDiagnostics"
-    (fun ps => diagnostics.atomically fun ref => ref.set ps.diagnostics) do
-  let ready ← IO.Promise.new
-  ls.withNotificationHandler "textDocument/clangd.fileStatus"
-    (fun {uri:=uri',state} => do if uri = uri' ∧ state = "idle" then ready.resolve true) do
-  ls.withTextDocument uri text languageId (version := version) do
-  discard <| IO.asTask do IO.sleep timeout; ready.resolve false
-  unless (← IO.wait ready.result) do
-    throw <| .userError <| "clangd took too long to load the shim"
-  diagnostics.atomically (·.get)
-
-namespace C
+namespace Alloy.C
 
 /-! ## Shim Elaboration -/
 
@@ -57,14 +46,18 @@ def addCommandToShim [Monad m] [MonadEnv m] [MonadError m] (cmd : Syntax) : m Un
 
 /-- Extract shim diagnostics from `clangd` and log them as Lean messages. -/
 def logDiagnosticsAfter (iniPos : String.Pos) : CommandElabM Unit := do
-  let some ls ← getLs?
-    | return
   let opts ← getOptions
+  unless shimDiagnostics.get opts do
+    return
+  let some ls ← if shimDiagnostics.serverOnly.get opts then getStartedLs? else getLs?
+    | return
   let shim := getLocalShim (← getEnv)
   let fileName ← getFileName; let fileMap ← getFileMap
-  let timeout := shimDiagnosticsTimeout.get opts
-  let warningSeverity := if warningAsError.get opts then .error else .warning
-  match (← ls.collectClangdDiagnostics nullUri shim.text.source "c" timeout |>.toBaseIO) with
+  let timeout := shimDiagnostics.timeout.get opts
+  let warningSeverity : MessageSeverity :=
+    if warningAsError.get opts then .error else .warning
+  ls.setShimDocument 0 shim.text.source "c"
+  match (← ls.collectShimDiagnostics timeout.toUInt32 |>.toBaseIO) with
   | .ok diagnostics =>
     for diagnostic in diagnostics do
       let range := lspRangeToUtf8Range shim.text diagnostic.range
@@ -112,8 +105,7 @@ def elabShimCommand (cmd : Syntax) : CommandElabM Unit := do
     unless (← elabCommandUsing cmd elabFns) do
       let stx ← elabShimSyntax cmd
       modifyEnv (shimExt.modifyState · (·.addCmd stx))
-  if (shimDiagnostics.get (← getOptions)) then
-    logDiagnosticsAfter iniPos
+  logDiagnosticsAfter iniPos
 
 /--
 A section of C code to elaborate.
