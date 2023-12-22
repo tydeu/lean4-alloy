@@ -636,6 +636,22 @@ syntax:arg cDirectAbsDeclarator:arg "(" optional(params) ")" : cDirectAbsDeclara
 ### Declarations
 -/
 
+/--
+The semicolon terminator of a C statement/declaration.
+
+The semicolon is made "optional" to help make partial statements
+well-formed for better LSP support and to enable whitespace-based termination
+in polyglot syntax.
+
+For the shim, the elaborator will always convert this into a real semicolon,
+even if it has been elided in user code.
+-/
+syntax endSemi := ";"?
+
+/-- Ensure the previous syntax ended with a semicolon token. -/
+def checkSemi : Parser :=
+  checkStackTop (tailSyntax · |>.isToken ";") "expected ';'"
+
 /-- An `init-declarator` of the C grammar. -/
 syntax initDeclarator := declarator optional(" = " cInitializer)
 
@@ -648,7 +664,7 @@ syntax declaration :=
   /-
   Recall that an `ident` can be a `cDeclSpec` or a `declarator`. The lookahead
   is needed to prevent Lean from robbing a `declarator` of its leading `ident`.
-  For example, in `int x = 5;` would be parsed as  `int : cDeclSpec`,
+  For example, `int x = 5;` would be parsed as  `int : cDeclSpec`,
   `x : cDeclSpec`, and then error as `= 5` is not a valid declarator.
 
   Also note that in `int x;` the syntax kind of `x` is ambiguous in the C
@@ -656,7 +672,7 @@ syntax declaration :=
   `cDeclSpec`.
   -/
   (atomic(lookahead(cDeclSpec (cDeclSpec <|> declarator <|> ";"))) cDeclSpec)+
-  initDeclarator,* ";"
+  initDeclarator,* endSemi
 
 --------------------------------------------------------------------------------
 /-! ## Types                                                                  -/
@@ -806,47 +822,59 @@ Collectively encode a [`jump-statement`][1] of the C grammar.
 -/
 
 /-- A C [goto](https://en.cppreference.com/w/c/language/goto) statement. -/
-syntax gotoStmt := "goto " ident ";"
+syntax gotoStmt := "goto " ident endSemi
 attribute [cStmt_parser] gotoStmt
 
 /-- A C [continue](https://en.cppreference.com/w/c/language/continue) statement. -/
-syntax continueStmt := "continue" ";"
+syntax continueStmt := "continue" endSemi
 attribute [cStmt_parser] continueStmt
 
 /-- A C [break](https://en.cppreference.com/w/c/language/break) statement. -/
-syntax breakStmt := "break" ";"
+syntax breakStmt := "break" endSemi
 attribute [cStmt_parser] breakStmt
 
 /-- A C [return](https://en.cppreference.com/w/c/language/return) statement. -/
-syntax returnStmt := "return" cExpr,* ";"
+syntax returnStmt := "return" cExpr,* endSemi
 attribute [cStmt_parser] returnStmt
 
 /-!
 ### Compound Statements
 -/
 
-/-- Syntax which can be used in the place of a statement in a `compound-statement`. -/
-syntax stmtLike := lineComment <|> blockComment <|> atomic(declaration) <|> cStmt
+/--
+Syntax which can be used in the place of a statement in a `compound-statement`.
+This is a syntax category so as to prefer the longest match.
+-/
+declare_syntax_cat cStmtLike
+syntax declaration : cStmtLike
+syntax cStmt : cStmtLike
 
 /--
 A [`compound-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
 -/
-syntax compStmt := "{" stmtLike* "}"
+syntax compStmt := "{" cStmtLike* "}"
 attribute [cStmt_parser] compStmt
 
 /-!
 ### Expression Statements
--/
 
-/--
-An [`expression-statement`][1] of the C grammar.
+Collectively encode an [`expression-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Expression_statements
 -/
-syntax exprStmt := cExpr,* ";"
+
+/-- A non-empty [`expression-statement`][1].
+
+[1]: https://en.cppreference.com/w/c/language/statements#Expression_statements
+-/
+syntax exprStmt := cExpr,+ endSemi
 attribute [cStmt_parser] exprStmt
+
+/-- A null statement. -/
+syntax nullStmt := ";"
+attribute [cStmt_parser] nullStmt
 
 /-!
 ### Iteration Statements
@@ -866,7 +894,7 @@ attribute [cStmt_parser] doWhileStmt
 
 /-- A C [for](https://en.cppreference.com/w/c/language/for) loop. -/
 syntax forStmt := "for "
-  "(" (atomic(declaration) <|> (cExpr,* ";")) cExpr,* ";" cExpr,* ")" cStmt
+  "(" ((atomic(declaration) checkSemi) <|> (cExpr,* ";")) cExpr,* ";" cExpr,* ")" cStmt
 attribute [cStmt_parser] forStmt
 
 /-!

@@ -112,7 +112,7 @@ alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
 -/
 scoped syntax (name := externImpl)
 "alloy " &"c " &"extern " (str)?
-&"impl " ident Term.binderIdent* " := " withPosition(many1Indent(stmtLike))
+&"impl " ident Term.binderIdent* " := " withPosition(many1Indent(cStmtLike))
 : command
 
 elab_rules : command

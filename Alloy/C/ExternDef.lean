@@ -26,7 +26,7 @@ alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
 scoped syntax (name := externDecl)
 (docComment)? (Term.attributes)? (visibility)? «unsafe»?
 "alloy " &"c " &"extern " (str)?
-"def " declId binders " : " term " := " withPosition(many1Indent(stmtLike))
+"def " declId binders " : " term " := " withPosition(many1Indent(cStmtLike))
 : command
 
 elab_rules : command
