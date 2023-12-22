@@ -13,7 +13,7 @@ namespace Alloy
 -- Adapted from the private utilities in `Lean.Elab.Binders`
 
 abbrev Hole := TSyntax ``Term.hole
-abbrev BinderIdent := TSyntax ``Term.binderIdent
+abbrev BinderIdent := TSyntax [identKind, ``Term.hole]
 abbrev BinderModifier := TSyntax [``Term.binderTactic, ``Term.binderDefault]
 
 @[inline] def mkHoleFrom (ref : Syntax) (canonical := false) : Hole :=

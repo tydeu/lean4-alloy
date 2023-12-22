@@ -32,12 +32,11 @@ alloy c extern_type RawY => Y := {
   finalize := `Y_finalize
 }
 
-alloy c extern impl RawY.mk data := {
-  Y* rawY = malloc(sizeof(Y));
+alloy c extern impl RawY.mk data :=
+  Y* rawY = (Y*)malloc(sizeof(Y));
   rawY->n = lean_ctor_get_uint32(data, 0);
   rawY->m = lean_ctor_get_uint32(data, sizeof(uint32_t));
   return to_lean<RawY>(rawY);
-}
 
 noncomputable def RawY.n (y : RawY) := y.data.n
 

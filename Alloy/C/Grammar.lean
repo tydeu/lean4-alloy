@@ -825,12 +825,15 @@ attribute [cStmt_parser] returnStmt
 ### Compound Statements
 -/
 
+/-- Syntax which can be used in the place of a statement in a `compound-statement`. -/
+syntax stmtLike := lineComment <|> blockComment <|> atomic(declaration) <|> cStmt
+
 /--
 A [`compound-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
 -/
-syntax compStmt := "{" (lineComment <|> blockComment <|> atomic(declaration) <|> cStmt)* "}"
+syntax compStmt := "{" stmtLike* "}"
 attribute [cStmt_parser] compStmt
 
 /-!

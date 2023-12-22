@@ -110,11 +110,15 @@ attribute [extern "alloy_foo"] foo
 alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
 ```
 -/
-scoped elab (name := externImpl)
-"alloy " &"c " exTk:&"extern " sym?:(str)?
-&"impl " id:ident bs:Term.binderIdent* " := " body:cStmt : command => do
+scoped syntax (name := externImpl)
+"alloy " &"c " &"extern " (str)?
+&"impl " ident Term.binderIdent* " := " withPosition(many1Indent(stmtLike))
+: command
+
+elab_rules : command
+| `(alloy c extern%$exTk $(sym?)? impl $id $bs* := $stmts*) => do
   let bvs := bs.map fun id => {ref := id, id, type := mkHoleFrom .missing}
-  elabExternImpl exTk sym? id bvs .missing (packBody body)
+  elabExternImpl exTk sym? id bvs .missing (packBody stmts)
 
 @[unused_variables_ignore_fn]
 def ignoreExternImpl : Linter.IgnoreFunction := fun _ stack _ =>

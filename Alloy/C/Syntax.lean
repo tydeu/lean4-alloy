@@ -52,6 +52,7 @@ abbrev AggrSig := TSyntax ``aggrSig
 abbrev Enumerator := TSyntax ``enumerator
 abbrev EnumSig := TSyntax ``enumSig
 abbrev Declaration := TSyntax ``declaration
+abbrev StmtLike := TSyntax ``stmtLike
 abbrev CompStmt := TSyntax ``compStmt
 abbrev ConstExpr := TSyntax ``constExpr
 
@@ -132,6 +133,12 @@ instance : Coe StorageClassSpec DeclSpec where
 instance : Coe FunSpec DeclSpec where
   coe x := Unhygienic.run `(cDeclSpec| $x:cFunSpec)
 
+instance : Coe Stmt StmtLike where
+  coe x := Unhygienic.run `(stmtLike| $x:cStmt)
+
+instance : Coe Declaration StmtLike where
+  coe x := Unhygienic.run `(stmtLike| $x:declaration)
+
 instance : Coe CompStmt Stmt where
   coe x := Unhygienic.run `(cStmt| $x:compStmt)
 
@@ -151,6 +158,10 @@ instance : Coe PPCmd Cmd where
 ## Other Helpers
 -/
 
-def packBody : Stmt → CompStmt
-| `(cStmt| $x:compStmt) => x
-| stmt => Unhygienic.run `(compStmt| {$stmt:cStmt})
+def packBody (stmts : Array StmtLike) : CompStmt :=
+  if h : 0 < stmts.size then
+    match stmts[0]'h with
+    | `(stmtLike| $x:compStmt) => x
+    | _ => Unhygienic.run `(compStmt| {$stmts*})
+  else
+    Unhygienic.run `(compStmt| {$stmts*})

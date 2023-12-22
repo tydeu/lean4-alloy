@@ -25,13 +25,14 @@ alloy c section LEAN_EXPORT uint32_t alloy_foo(uint32_t x) {...}
 -/
 scoped syntax (name := externDecl)
 (docComment)? (Term.attributes)? (visibility)? «unsafe»?
-"alloy " &"c " "extern " (str)? "def " declId binders " : " term " := " cStmt
+"alloy " &"c " &"extern " (str)?
+"def " declId binders " : " term " := " withPosition(many1Indent(stmtLike))
 : command
 
 elab_rules : command
 | `(externDecl| $[$doc?]? $[$attrs?]? $[$vis?]? $[unsafe%$uTk?]?
-  alloy c extern%$exTk $[$sym?]? def $id $bs* : $ty := $body) => do
+  alloy c extern%$exTk $[$sym?]? def $id $bs* : $ty := $stmts*) => do
   let cmd ← `($[$doc?]? $[$attrs?]? $[$vis?]? noncomputable $[unsafe%$uTk?]? opaque $id $[$bs]* : $ty)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
   let bvs ← liftMacroM <| bs.concatMapM matchBinder
-  elabExternImpl exTk sym? ⟨id.raw[0]⟩ bvs ty (packBody body)
+  elabExternImpl exTk sym? ⟨id.raw[0]⟩ bvs ty (packBody stmts)
