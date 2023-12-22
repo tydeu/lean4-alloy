@@ -126,3 +126,8 @@ scoped macro (name := includeCmd)
   let cmds ← MonadRef.withRef Syntax.missing <|
     hdrs.mapM fun hdr => `(cCmd|#include $hdr)
   `(alloy c section $cmds* end)
+
+/-- Always elaborate an ending (optional) semicolon to a literal semicolon. -/
+@[shim_elab endSemi] def elabEndSemi : ShimElab := fun stx => do
+  modifyEnv (shimExt.modifyState · (·.addCodeSnippet ";"))
+  return stx

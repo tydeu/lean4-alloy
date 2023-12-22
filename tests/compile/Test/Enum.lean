@@ -13,7 +13,7 @@ alloy c enum
   deriving Inhabited
 
 alloy c extern def myAdd (x y : MyNum) : UInt32 :=
-  return of_lean<MyNum>(x) + of_lean<MyNum>(y);
+  return of_lean<MyNum>(x) + of_lean<MyNum>(y)
 
 def test : IO Unit := do
   if myAdd .a .c = 8 then

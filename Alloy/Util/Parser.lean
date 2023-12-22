@@ -9,6 +9,11 @@ namespace Alloy
 
 open Lean Parser PrettyPrinter Formatter Parenthesizer
 
+partial def tailSyntax : Syntax → Syntax
+| stx@(.node _ _ args) =>
+  args.back?.map tailSyntax |>.getD stx
+| stx => stx
+
 def identSatisfyFn (expected : List String) (p : Name → Bool) : ParserFn := fun ctx st =>
   let startPos := st.pos
   let initStackSz := st.stackSize
