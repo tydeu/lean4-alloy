@@ -28,7 +28,7 @@ require alloy from git "https://github.com/tydeu/lean4-alloy.git"
 module_data alloy.c.o : BuildJob FilePath
 lean_lib <your-lib> {
   precompileModules := true
-  nativeFacets := #[Module.oFacet, &`alloy.c.o]
+  nativeFacets := #[Module.oFacet, `alloy.c.o]
   -- and whatever other configuration options you wish to add
 }
 ```
