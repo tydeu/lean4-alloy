@@ -9,21 +9,23 @@ import Alloy.C.Server.Clangd
 import Alloy.Util.Server
 
 /-!
-# C Language Server Worker
+# Alloy's C Language Server Worker
 
-The language server can be in one of three states:
-* `none`: Failed to start and is therefore unsupported
-* `some`: Initialized and is running
-* `undef`: Not yet started, waiting for the first `getLs?` to attempt start
+Alloy uses `clangd` to provide interactive support for C shims.
+This file contains the `ClangdWorker` specialization of Alloy's general
+`LsWorker` type with additional configuration and helpers for managing
+precisely an Alloy-style `clangd` language server.
 
-We use the limbo state of `undef` to ensure we do not try to start the
-language server when unnecessary (e.g., during compilation, where elaboration
-is non-interactive).
+It also contains the definitions for the the `ClangdWorker` instance
+used by Alloy in the Lean language server. The instance is also reused during
+command elaboration to provide diagnostics for C shim code.
 -/
 
-open Lean Lsp
+open System Lean Lsp
 
 namespace Alloy.C
+
+/-! ## Clangd-specific Worker Configuration & Helpers -/
 
 /-- Verbosity of the log messages `clangd` writes. -/
 inductive ClangdLogging
@@ -40,16 +42,27 @@ def ClangdLogging.toString : ClangdLogging → String
 
 instance : ToString ClangdLogging := ⟨ClangdLogging.toString⟩
 
-/-- Alloy `clangd` language server configuration. -/
+/-- `clangd` language server configuration. -/
 structure ServerConfig where
   /--
-  Flags to configure the `clangd` server with.
-  Alloy adds Lean's include directory to the include path by default.
+  Array of directories to add to `clangd`'s include path
+  (e.g., directories to search within for `#include`'d files).
+
+  Alloy initializes this with Lean's include directory by default.
+  Additional include paths can be added via the `addServerIncludePath` helper.
   -/
-  flags : Array String
+  includePaths : Array FilePath
+  /--
+  Additional Flags to configure the `clangd` server with
+  (on top of those implied by  `includePaths`).
+  -/
+  moreFlags : Array String
   /--Log message verbosity of the `clangd` language server. -/
   logging : ClangdLogging
   deriving Inhabited
+
+@[inline] def ServerConfig.flags (cfg : ServerConfig) : Array String :=
+  cfg.includePaths.map (s!"-I{·}") ++ cfg.moreFlags
 
 structure ClangdDocState where
   leanVer : Nat := 0
@@ -61,7 +74,7 @@ structure ClangdDocState where
 
 abbrev ClangdWorker := LsWorker ClangdDocState
 
-/-- Attempt to initialize the Alloy `clangd` server. -/
+/-- Attempt to initialize an Alloy `clangd` server. -/
 def initLs? (cfg : ServerConfig) : BaseIO (Option ClangdWorker) :=
   let act : IO ClangdWorker := do
     let args := #[s!"--log={cfg.logging}",
@@ -179,15 +192,37 @@ def ClangdWorker.collectShimDiagnostics
     else
       IO.wait p.result
 
-/-- Configuration with which to start Alloy's C language server. -/
+/-! ## Language Server Instance
+
+The language server used by Alloy can be in one of three states:
+* `none`: Failed to start and is therefore unsupported
+* `some`: Initialized and is running
+* `undef`: Not yet started, waiting for the first `getLs?` to attempt start
+
+We use the limbo state of `undef` to ensure we do not try to start the
+language server when unnecessary (e.g., during compilation, where elaboration
+is non-interactive).
+-/
+
+/--
+The reference to Alloy's C language sever instance.
+
+It is wrapped in a mutex because it is has complex volatile state,
+but accessed concurrently by the Lean language server.
+-/
+initialize serverMux : IO.Mutex (LOption ClangdWorker) ← IO.Mutex.new .undef
+
+/-- Configuration with which to start Alloy's C language server instance. -/
 initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
-  flags := #["-I", (← Lean.getBuildDir) / "include" |>.toString]
+  includePaths := #[(← Lean.getBuildDir) / "include"]
+  moreFlags := #[]
   logging := .error
 }
 
-initialize serverMux : IO.Mutex (LOption ClangdWorker) ← IO.Mutex.new .undef
-
-/-- Return the C language server. Tries to start it exactly once. -/
+/--
+Return Alloy's C language server.
+Tries to start it exactly once across all calls to this function.
+-/
 def getLs? : BaseIO (Option ClangdWorker) :=
   serverMux.atomically fun ref => ref.get >>= fun
     | .none => return none
@@ -197,8 +232,61 @@ def getLs? : BaseIO (Option ClangdWorker) :=
       ref.set ls?.toLOption
       return ls?
 
-/-- Return the C language server if it has already started. -/
+/-- Return Alloy's C language server if it has already started. -/
 def getStartedLs? : BaseIO (Option ClangdWorker) :=
   serverMux.atomically fun ref => ref.get >>= fun
     | .some ls => return some ls
     | _ => return none
+
+/--
+Add an include path to Alloy's C language server configuration.
+
+### Example
+
+Consider a library with its header files located at `/lib/include`
+where one such header file is `foo.h`.
+There are two ways to use this function to add `/lib/include` to the `clangd`
+include path for Alloy's C language server so that `foo.h` can be included
+via `alloy c include "foo.h"`.
+
+The most robust approach is to use an `initialize` command to add the
+include path to the configuration during module initialization. This will make
+the path available whenever a another module imports the module with the
+`initialize`.
+
+**V1/A.lean**
+```
+import Alloy.C
+initialize Alloy.C.addServerIncludePath "/lib/include"
+```
+
+**V1/B.lean**
+```
+import V1.A
+alloy c include "foo.h"
+```
+
+However, this approach requires two modules. To add to the include path
+and make use of it in the same module, one can used an `#eval` command,
+but this has some limitations.
+
+**V2.lean**
+```
+import Alloy.C
+#eval Alloy.C.addServerIncludePath "/lib/include"
+alloy c include "foo.h"
+```
+
+This will only work if the `#eval` is executed before Alloy
+starts the language server. If the `#eval` is executed afterwards, it will
+have no effect as Alloy never restarts the language server.
+
+Alloy starts the language server for C commands where
+`Alloy.C.shimDiagnostics.serverOnly` has been set to `false` and in an
+interactive context after the file is elaborated once.
+Thus, the safest way to make use of such an `#eval` is to put it at the start
+of a file before any shim code and to restart the language sever (e.g., via the
+`Restart File` command in VSCode) anytime the command is edited.
+-/
+@[inline] def addServerIncludePath (path : FilePath) : IO PUnit := do
+  serverConfig.modify fun cfg => {cfg with includePaths := cfg.includePaths.push path}
