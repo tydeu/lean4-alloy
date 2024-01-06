@@ -48,10 +48,10 @@ structure ServerConfig where
   Array of directories to add to `clangd`'s include path
   (e.g., directories to search within for `#include`'d files).
 
-  Alloy initializes this with Lean's include directory by default.
+  Alloy, by default, already also adds Lean's own include directory.
   Additional include paths can be added via the `addServerIncludePath` helper.
   -/
-  includePaths : Array FilePath
+  moreIncludePaths : Array FilePath
   /--
   Additional Flags to configure the `clangd` server with
   (on top of those implied by  `includePaths`).
@@ -62,7 +62,7 @@ structure ServerConfig where
   deriving Inhabited
 
 @[inline] def ServerConfig.flags (cfg : ServerConfig) : Array String :=
-  cfg.includePaths.map (s!"-I{·}") ++ cfg.moreFlags
+  cfg.moreIncludePaths.map (s!"-I{·}") ++ cfg.moreFlags
 
 structure ClangdDocState where
   leanVer : Nat := 0
@@ -107,7 +107,7 @@ def initLs? (cfg : ServerConfig) : BaseIO (Option ClangdWorker) :=
       }
       initializationOptions? := some <| toJson (α := Clangd.InitializationOptions) {
         -- Add Lean's include directory to `clangd`'s include path
-        fallbackFlags? := some cfg.flags
+        fallbackFlags? := some <| #["-I", (← Lean.getBuildDir) / "include" |>.toString] ++ cfg.flags
         clangdFileStatus? := true
       }
     }
@@ -135,13 +135,13 @@ def initLs? (cfg : ServerConfig) : BaseIO (Option ClangdWorker) :=
 
 def ClangdWorker.updateDocumentVersion
   (ls : ClangdWorker) (leanVer : Nat) (text : String)
-: IO (Nat × Bool) := do
+: IO (Option Nat) := do
   ls.state.atomically fun ref => do
     let s ← ref.get
     let doc := s.data
     -- NOTE: Assumes shim changes across snapshots lengthen the shim
     unless leanVer = 0 || doc.leanVer < leanVer || doc.shimEndPos < text.endPos do
-      return (doc.version, false)
+      return none
     let doc := {
       leanVer := if leanVer > 0 then leanVer else doc.leanVer
       shimEndPos := text.endPos
@@ -156,13 +156,12 @@ def ClangdWorker.updateDocumentVersion
         | .inr p => pure <| .inr p
     }
     ref.set {s with data := doc}
-    return (doc.version, true)
+    return some doc.version
 
 def ClangdWorker.setShimDocument
   (ls : ClangdWorker) (leanVer : Nat) (text : String) (languageId : String)
 : IO Unit := do
-  let (version, updated) ← ls.updateDocumentVersion leanVer text
-  if updated then
+  if let some version ← ls.updateDocumentVersion leanVer text then
     ls.notify "textDocument/didOpen" ⟨{uri := nullUri, version, text, languageId}⟩
 
 def ClangdWorker.readyShimDocument
@@ -214,7 +213,7 @@ initialize serverMux : IO.Mutex (LOption ClangdWorker) ← IO.Mutex.new .undef
 
 /-- Configuration with which to start Alloy's C language server instance. -/
 initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
-  includePaths := #[(← Lean.getBuildDir) / "include"]
+  moreIncludePaths := #[]
   moreFlags := #[]
   logging := .error
 }
@@ -289,4 +288,13 @@ of a file before any shim code and to restart the language sever (e.g., via the
 `Restart File` command in VSCode) anytime the command is edited.
 -/
 @[inline] def addServerIncludePath (path : FilePath) : IO PUnit := do
-  serverConfig.modify fun cfg => {cfg with includePaths := cfg.includePaths.push path}
+  serverConfig.modify fun cfg =>
+    {cfg with moreIncludePaths := cfg.moreIncludePaths.push path}
+
+/-- Add additional Clang flags to Alloy's C language server configuration. -/
+@[inline] def addServerFlags (flags : Array String) : IO PUnit := do
+  serverConfig.modify fun cfg => {cfg with moreFlags := cfg.moreFlags ++ flags}
+
+/-- Add an additional Clang flag to Alloy's C language server configuration. -/
+@[inline] def addServerFlag (flag : String) : IO PUnit := do
+  serverConfig.modify fun cfg => {cfg with moreFlags := cfg.moreFlags.push flag}
