@@ -850,6 +850,9 @@ declare_syntax_cat cStmtLike
 syntax declaration : cStmtLike
 syntax cStmt : cStmtLike
 
+/-- A optionally indent-based sequence of statements primarily for polyglot code. -/
+syntax stmtSeq := many1Indent(cStmtLike)
+
 /--
 A [`compound-statement`][1] of the C grammar.
 

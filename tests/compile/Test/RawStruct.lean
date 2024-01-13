@@ -12,10 +12,6 @@ alloy c section
 typedef struct {
   uint32_t n, m;
 } Y;
-
-static inline void Y_finalize(void* ptr) {
-  free(ptr);
-}
 end
 
 structure PureY where
@@ -28,9 +24,8 @@ structure RawY where
   -- this is unsafe hack around lean4#2292 for testing purposes
   unit : Unit
 
-alloy c extern_type RawY => Y := {
-  finalize := `Y_finalize
-}
+alloy c extern_type RawY => Y where
+  finalize(y) := free(y)
 
 alloy c extern impl RawY.mk data :=
   Y* rawY = (Y*)malloc(sizeof(Y))

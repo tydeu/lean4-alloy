@@ -16,30 +16,18 @@ alloy c include <stdint.h> <stdlib.h> <string.h> <lean/lean.h>
 --------------------------------------------------------------------------------
 
 alloy c section
-
 typedef struct {
   uint32_t      m_x;
   uint32_t      m_y;
   lean_object * m_s;
 } S;
 
-static void S_finalize(void* ptr) {
-  lean_dec(((S*)ptr)->m_s);
-  free(ptr);
-}
-
-static void S_foreach(void* ptr, b_lean_obj_arg f) {
-  lean_apply_1(f, ((S*)ptr)->m_s);
-}
-
 static S g_s = {0, 0, NULL};
-
 end
 
-alloy c opaque_extern_type S => S := {
-  foreach := `S_foreach
-  finalize := `S_finalize
-}
+alloy c opaque_extern_type S => S where
+  foreach(s, f) := lean_apply_1(f, s->m_s)
+  finalize(s) := lean_dec(s->m_s); free(s)
 
 --------------------------------------------------------------------------------
 /-! ## Lean Interface                                                         -/
