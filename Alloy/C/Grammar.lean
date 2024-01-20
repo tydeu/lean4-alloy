@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
 import Alloy.Util.Parser
+import Alloy.Util.Grammar
 
 /-!
 # The C Grammar
@@ -238,7 +239,7 @@ syntax:max "(" type ")" "{" initializerElem,*,? "}" : cExpr
 syntax:max "(" cExpr ")" : cExpr
 
 /-- A `generic-association` of the C grammar. -/
-syntax genericAssoc := (ident ":" cExpr) <|> ("default" ":" cExpr)
+syntax genericAssoc := (ident ":" cExpr) <|> (&"default" ":" cExpr)
 
 /-- A `generic-selection` expression of the C grammar (since C11). -/
 syntax:max "_Generic" "(" cExpr "," genericAssoc,+ ")" : cExpr
@@ -752,8 +753,7 @@ syntax ident : cTypeSpec
 -/
 
 /-- An `atomic-type-specifier` of the C grammar. -/
-syntax atomicSpec := "_Atomic" "(" type ")"
-attribute [cTypeSpec_parser] atomicSpec
+syntax atomicSpec : cTypeSpec := "_Atomic" "(" type ")"
 
 /-!
 ### Aggregates
@@ -781,12 +781,10 @@ syntax aggrDef := "{" (lineComment <|> blockComment <|> aggrDeclaration)* "}"
 syntax aggrSig := aggrDef <|> (ident optional(aggrDef))
 
 /-- A C [struct](https://en.cppreference.com/w/c/language/struct) declaration. -/
-syntax structSpec := "struct " aggrSig
-attribute [cTypeSpec_parser] structSpec
+syntax structSpec : cTypeSpec := "struct " aggrSig
 
 /-- A C [union](https://en.cppreference.com/w/c/language/union) declaration. -/
-syntax unionSpec := "union " aggrSig
-attribute [cTypeSpec_parser] unionSpec
+syntax unionSpec : cTypeSpec := "union " aggrSig
 
 /-!
 ### Enums
@@ -799,16 +797,14 @@ syntax enumDef := "{" (lineComment <|> blockComment <|> enumerator),+ "}"
 syntax enumSig := enumDef <|> (ident optional(enumDef))
 
 /-- An [`enum-specifier`](https://en.cppreference.com/w/c/language/enum) of the C grammar. -/
-syntax enumSpec := "enum " enumSig
-attribute [cTypeSpec_parser] enumSpec
+syntax enumSpec : cTypeSpec := "enum " enumSig
 
 /-!
 ### Alignment
 -/
 
 /-- An `alignment-specifier` of the C grammar. -/
-syntax alignSpec := "_Alignas" "(" (type <|> constExpr) ")"
-attribute [cSpec_parser] alignSpec
+syntax alignSpec : cSpec := &"_Alignas" "(" (type <|> constExpr) ")"
 
 --------------------------------------------------------------------------------
 /-! ## Statements                                                             -/
@@ -823,20 +819,16 @@ Collectively encode a [`jump-statement`][1] of the C grammar.
 -/
 
 /-- A C [goto](https://en.cppreference.com/w/c/language/goto) statement. -/
-syntax gotoStmt := "goto " ident endSemi
-attribute [cStmt_parser] gotoStmt
+syntax gotoStmt : cStmt := &"goto " ident endSemi
 
 /-- A C [continue](https://en.cppreference.com/w/c/language/continue) statement. -/
-syntax continueStmt := "continue" endSemi
-attribute [cStmt_parser] continueStmt
+syntax continueStmt : cStmt := "continue" endSemi
 
 /-- A C [break](https://en.cppreference.com/w/c/language/break) statement. -/
-syntax breakStmt := "break" endSemi
-attribute [cStmt_parser] breakStmt
+syntax breakStmt : cStmt := "break" endSemi
 
 /-- A C [return](https://en.cppreference.com/w/c/language/return) statement. -/
-syntax returnStmt := "return" cExpr,* endSemi
-attribute [cStmt_parser] returnStmt
+syntax returnStmt : cStmt := "return" (ppSpace cExpr),* endSemi
 
 /-!
 ### Compound Statements
@@ -858,8 +850,7 @@ A [`compound-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Compound_statements
 -/
-syntax compStmt := "{" cStmtLike* "}"
-attribute [cStmt_parser] compStmt
+syntax compStmt : cStmt := "{" cStmtLike* "}"
 
 /-!
 ### Expression Statements
@@ -873,12 +864,10 @@ Collectively encode an [`expression-statement`][1] of the C grammar.
 
 [1]: https://en.cppreference.com/w/c/language/statements#Expression_statements
 -/
-syntax exprStmt := cExpr,+ endSemi
-attribute [cStmt_parser] exprStmt
+syntax exprStmt : cStmt := cExpr,+ endSemi
 
 /-- A null statement. -/
-syntax nullStmt := ";"
-attribute [cStmt_parser] nullStmt
+syntax nullStmt : cStmt := ";"
 
 /-!
 ### Iteration Statements
@@ -889,12 +878,10 @@ Collectively encode a [`iteration-statement`][1] of the C grammar.
 -/
 
 /-- A C [while](https://en.cppreference.com/w/c/language/while) loop. -/
-syntax whileStmt := "while " "(" cExpr,+ ")" cStmt
-attribute [cStmt_parser] whileStmt
+syntax whileStmt : cStmt := "while " "(" cExpr,+ ")" cStmt
 
 /-- A C [do-while](https://en.cppreference.com/w/c/language/do) loop. -/
-syntax doWhileStmt := "do " cStmt " while " "(" cExpr,+ ")"
-attribute [cStmt_parser] doWhileStmt
+syntax doWhileStmt : cStmt := "do " cStmt " while " "(" cExpr,+ ")"
 
 /-- A C [for](https://en.cppreference.com/w/c/language/for) loop. -/
 syntax forStmt := "for "
@@ -910,12 +897,10 @@ Collectively encode a [`selection-statement`][1] of the C grammar.
 -/
 
 /-- A C [if](https://en.cppreference.com/w/c/language/if) statement. -/
-syntax ifStmt := "if " "(" cExpr,+ ")" cStmt (" else " cStmt)?
-attribute [cStmt_parser] ifStmt
+syntax ifStmt : cStmt := "if " "(" cExpr,+ ")" cStmt (" else " cStmt)?
 
 /-- A C [switch](https://en.cppreference.com/w/c/language/switch) statement. -/
-syntax switchStmt := "switch " "(" cExpr,+ ")" cStmt
-attribute [cStmt_parser] switchStmt
+syntax switchStmt : cStmt := &"switch " "(" cExpr,+ ")" cStmt
 
 /-!
 ### Labeled Statements
@@ -926,16 +911,13 @@ Collectively encode a [`labeled-statement`][1] of the C grammar.
 -/
 
 /-- A target for a C goto statement. -/
-syntax labelStmt := ident ": " cStmt
-attribute [cStmt_parser] labelStmt
+syntax labelStmt : cStmt := ident ": " cStmt
 
 /-- A case label in a C switch statement. -/
-syntax caseStmt := "case " constExpr ": " cStmt
-attribute [cStmt_parser] caseStmt
+syntax caseStmt : cStmt := &"case " constExpr ": " cStmt
 
 /-- A default label in a C switch statement. -/
-syntax defaultStmt := "default" ": " cStmt
-attribute [cStmt_parser] defaultStmt
+syntax defaultStmt : cStmt := &"default" ": " cStmt
 
 --------------------------------------------------------------------------------
 /-! ## Top-Level Commands                                                     -/
@@ -989,32 +971,27 @@ syntax ppCmd : cCmd
 syntax ppCmd : cStmt
 
 /-- The C preprocessor null directive (does nothing). -/
-syntax nullCmd := "#"
-attribute [ppCmd_parser] nullCmd
+syntax nullCmd : ppCmd := "#"
 
 /-- [Include](https://en.cppreference.com/w/c/preprocessor/include) a C header. -/
-syntax includeCmd := "#include " header
-attribute [ppCmd_parser] includeCmd
+syntax includeCmd : ppCmd := "#include " header
 
 /-- Define a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
-syntax defineCmd := "#define " rawIdent (noWs "("  rawIdent,*,?  "..."? ")")? line
-attribute [ppCmd_parser] defineCmd
+syntax defineCmd : ppCmd :=
+  "#define " rawIdent (noWs "("  rawIdent,*,?  "..."? ")")? line
 
 /-- Remove a C [preprocessor macro](https://en.cppreference.com/w/cpp/preprocessor/replace). -/
-syntax undefCmd := "#undef " rawIdent
-attribute [ppCmd_parser] undefCmd
+syntax undefCmd : ppCmd := "#undef " rawIdent
 
 /--
 Change the [current line and file name][1] of the C preprocessor.
 
 [1]: https://en.cppreference.com/w/c/preprocessor/line
 -/
-syntax lineCmd := "#line " line
-attribute [ppCmd_parser] lineCmd
+syntax lineCmd : ppCmd := "#line " line
 
 /-- Cause a C preprocessor [error](https://en.cppreference.com/w/c/preprocessor/error). -/
-syntax errorCmd := "#error " line
-attribute [ppCmd_parser] errorCmd
+syntax errorCmd : ppCmd := "#error " line
 
 /--
 Cause a C preprocessor [warning][1].
@@ -1022,12 +999,10 @@ Standardized in C23, but provided by many compilers much earlier.
 
 [1]: https://en.cppreference.com/w/c/preprocessor/error
 -/
-syntax warningCmd := "#warning " line
-attribute [ppCmd_parser] warningCmd
+syntax warningCmd : ppCmd := "#warning " line
 
 /-- Perform some [implementation-defined behavior](https://en.cppreference.com/w/c/preprocessor/impl). -/
-syntax pragmaCmd := "#pragma " line
-attribute [ppCmd_parser] pragmaCmd
+syntax pragmaCmd : ppCmd := "#pragma " line
 
 /-!
 #### Conditional Inclusion
@@ -1052,24 +1027,21 @@ The start of a C preprocessor conditional inclusion directive.
 Process the following branch if the constant expression evaluates
 to a nonzero integer.
 -/
-syntax ifCmd := "#if " constExpr
-attribute [ppCmd_parser] ifCmd
+syntax ifCmd : ppCmd := "#if " constExpr
 
 /--
 The start of a C preprocessor conditional inclusion directive.
 
 Process the following branch if the identifier is a defined macro.
 -/
-syntax ifdefCmd := "#ifdef " rawIdent
-attribute [ppCmd_parser] ifdefCmd
+syntax ifdefCmd : ppCmd := "#ifdef " rawIdent
 
 /--
 An else-if branch of a C preprocessor conditional inclusion block.
 
 Process the following branch if the identifier is *not* a defined macro.
 -/
-syntax ifndefCmd := "#ifndef " rawIdent
-attribute [ppCmd_parser] ifndefCmd
+syntax ifndefCmd : ppCmd := "#ifndef " rawIdent
 
 /--
 An else-if branch of a C preprocessor conditional inclusion block.
@@ -1077,8 +1049,7 @@ An else-if branch of a C preprocessor conditional inclusion block.
 Ends the previous branch of a conditional inclusion block and processes the
 following branch if the constant expression evaluates to a nonzero integer.
 -/
-syntax elifCmd := "#elif " constExpr
-attribute [ppCmd_parser] elifCmd
+syntax elifCmd : ppCmd := "#elif " constExpr
 
 /--
 The else branch of a C preprocessor conditional inclusion block.
@@ -1086,9 +1057,7 @@ The else branch of a C preprocessor conditional inclusion block.
 Ends the previous branch of a conditional inclusion block and processes
 the following branch if the previous branch was skipped.
 -/
-syntax elseCmd := "#else"
-attribute [ppCmd_parser] elseCmd
+syntax elseCmd : ppCmd := "#else"
 
 /-- The end of a C preprocessor conditional inclusion block. -/
-syntax endifCmd := "#endif"
-attribute [ppCmd_parser] endifCmd
+syntax endifCmd : ppCmd := "#endif"
