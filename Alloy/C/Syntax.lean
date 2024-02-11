@@ -46,8 +46,10 @@ abbrev AlignSpec := TSyntax ``alignSpec
 abbrev ParamDecl := TSyntax ``paramDecl
 abbrev Params := TSyntax ``params
 abbrev Function := TSyntax ``function
+abbrev InitializerElem := TSyntax ``initializerElem
 abbrev Declarator := TSyntax ``declarator
 abbrev AbsDeclarator := TSyntax ``absDeclarator
+abbrev InitDeclarator := TSyntax ``initDeclarator
 abbrev AggrDeclarator := TSyntax ``aggrDeclarator
 abbrev AggrSig := TSyntax ``aggrSig
 abbrev Enumerator := TSyntax ``enumerator
@@ -85,6 +87,9 @@ instance : Coe Expr ConstExpr where
 instance : Coe Expr Initializer where
   coe x := Unhygienic.run `(cInitializer| $x:cExpr)
 
+instance : Coe Initializer InitializerElem where
+  coe x := Unhygienic.run `(initializerElem| $x:cInitializer)
+
 instance : Coe Expr Index where
   coe x := Unhygienic.run `(cIndex| $x:cExpr)
 
@@ -99,6 +104,9 @@ instance : Coe Ident DirectDeclarator where
 
 instance : Coe DirectDeclarator Declarator where
   coe x := Unhygienic.run `(declarator| $x:cDirectDeclarator)
+
+instance : Coe Declarator InitDeclarator where
+  coe x := Unhygienic.run `(initDeclarator| $x:declarator)
 
 instance : Coe Declarator AggrDeclarator where
   coe x := Unhygienic.run `(aggrDeclarator| $x:declarator)
@@ -132,6 +140,9 @@ instance : Coe StorageClassSpec DeclSpec where
 
 instance : Coe FunSpec DeclSpec where
   coe x := Unhygienic.run `(cDeclSpec| $x:cFunSpec)
+
+instance : Coe DeclSpec ParamDecl where
+  coe x := Unhygienic.run `(paramDecl|$x:cDeclSpec)
 
 instance : Coe Stmt StmtLike where
   coe x := Unhygienic.run `(cStmtLike| $x:cStmt)
