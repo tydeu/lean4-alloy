@@ -9,6 +9,32 @@ namespace Alloy
 
 open Lean Parser PrettyPrinter Formatter Parenthesizer
 
+#check pushNone
+#check many1
+
+/--
+The parser `many1Lookahead(p, pAhead)`, repeats `p` up to a final `pAhead`.
+It is thus useful when `p` and `pAhead` overlap.
+-/
+@[run_parser_attribute_hooks]
+def many1Lookahead (p pAhead : Parser) : Parser :=
+  many1 $ atomic $ p >> lookahead (p <|> pAhead)
+
+/--
+The parser `many1OptLookahead(p, pAhead)`, repeats `p` up to a final `pAhead`
+or, if the sequence does not end in a `pAhead`, until `p` fails.
+It is thus useful when `p` and `pAhead` overlap.
+-/
+@[run_parser_attribute_hooks]
+def many1OptLookahead (p pAhead : Parser) : Parser := many1 $
+  -- Remark: we can nnt write this as `notFollowedBy <|> lookahead`
+  -- because `orelse` will panic on `stxStack.back` on the 0-arity `notFollowedBy`
+  (lookahead $ (atomic $ p >> (p <|> pAhead)) <|> notFollowedBy pAhead "element") >> p
+
+initialize
+  register_parser_alias many1Lookahead
+  register_parser_alias many1OptLookahead
+
 partial def tailSyntax : Syntax → Syntax
 | stx@(.node _ _ args) =>
   args.back?.map tailSyntax |>.getD stx
@@ -16,26 +42,29 @@ partial def tailSyntax : Syntax → Syntax
 
 def identSatisfyFn (expected : List String) (p : Name → Bool) : ParserFn := fun ctx st =>
   let startPos := st.pos
-  let initStackSz := st.stackSize
+  let iniStackSz := st.stackSize
   let st := tokenFn expected ctx st
   if st.hasError then
     st
   else
-    match st.stxStack.back with
-    | Syntax.ident _ _ val _ =>
-      if p val then st else
-        st.mkErrorsAt expected startPos initStackSz
-    | _  => st.mkErrorsAt expected startPos initStackSz
+    if st.stxStack.size > 0 then -- avoid panics
+      match st.stxStack.back with
+      | Syntax.ident _ _ val _ =>
+        if p val then st else
+          st.mkErrorsAt expected startPos iniStackSz
+      | _  => st.mkErrorsAt expected startPos iniStackSz
+    else
+      st.mkErrorsAt expected startPos iniStackSz
 
 def identSatisfyNoAntiquot (expected : List String) (p : Name → Bool)  : Parser where
   fn   := identSatisfyFn expected p
   info := mkAtomicInfo "ident"
 
 @[combinator_formatter identSatisfyNoAntiquot]
-def simpleIdentNoAntiquot.formatter := identNoAntiquot.formatter
+def identSatisfyNoAntiquot.formatter := identNoAntiquot.formatter
 
 @[combinator_parenthesizer identSatisfyNoAntiquot]
-def simpleIdentNoAntiquot.parenthesizer := identNoAntiquot.parenthesizer
+def identSatisfyNoAntiquot.parenthesizer := identNoAntiquot.parenthesizer
 
 @[run_parser_attribute_hooks] def identSatisfy (expected : List String) (p : Name → Bool) : Parser :=
   withAntiquot (mkAntiquot "ident" identKind) <| identSatisfyNoAntiquot expected p

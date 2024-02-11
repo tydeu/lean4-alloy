@@ -100,7 +100,7 @@ syntax "." ident : cDesignator
 syntax cExpr : cInitializer
 
 /-- An element of a C initializer list. -/
-syntax initializerElem := (optional(cDesignator+ "=") cInitializer)
+syntax initializerElem := optional(cDesignator+ "=") cInitializer
 
 /-- A C aggregate initializer that uses an initializer list. -/
 syntax "{" initializerElem,*,? "}" : cInitializer
@@ -624,7 +624,7 @@ syntax params := paramDecl,+,? "..."?
 syntax:max ident : cDirectDeclarator
 
 syntax:max "(" declarator ")" : cDirectDeclarator
-syntax:arg cDirectDeclarator:arg "[" optional(cIndex)"]" : cDirectDeclarator
+syntax:arg cDirectDeclarator:arg "[" optional(cIndex) "]" : cDirectDeclarator
 syntax:arg cDirectDeclarator:arg "(" params ")" : cDirectDeclarator
 syntax:arg cDirectDeclarator:arg "(" ident* ")" : cDirectDeclarator
 
@@ -673,8 +673,7 @@ syntax declaration :=
   grammar -- it could be a `cDeclSpec` or a `declarator`.
   This parses it as a `declarator`.
   -/
-  ((atomic(lookahead(cDeclSpec (cDeclSpec <|> declarator))) <|> !declarator) cDeclSpec)+
-  initDeclarator,* endSemi
+  many1OptLookahead(cDeclSpec, declarator) initDeclarator,* endSemi
 
 --------------------------------------------------------------------------------
 /-! ## Types                                                                  -/
@@ -774,8 +773,7 @@ syntax aggrDeclarator := aggrDeclBits <|> (declarator optional(aggrDeclBits))
 /-- A `struct-declaration` of the C grammar. -/
 syntax aggrDeclaration :=
   -- See `declaration` as to why the lookahead is needed.
-  ((atomic(lookahead(cSpec (cSpec <|> aggrDeclarator))) <|> !aggrDeclarator) cSpec)+
-  aggrDeclarator,* endSemi
+  many1OptLookahead(cSpec, aggrDeclarator) aggrDeclarator,* endSemi
 
 syntax aggrDef := "{" (lineComment <|> blockComment <|> aggrDeclaration)* "}"
 syntax aggrSig := aggrDef <|> (ident optional(aggrDef))
@@ -933,8 +931,7 @@ declare_syntax_cat cExternDecl
 /-- A [`function`](https://en.cppreference.com/w/c/language/functions) of the C grammar. -/
 syntax function :=
   -- See `declaration` as to why the lookahead is needed.
-  (atomic(lookahead(cDeclSpec (cDeclSpec <|> declarator))) cDeclSpec)+
-  declarator declaration* compStmt
+  many1Lookahead(cDeclSpec, declarator) declarator declaration* compStmt
 
 syntax function : cExternDecl
 syntax declaration : cExternDecl
