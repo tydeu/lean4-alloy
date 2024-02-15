@@ -9,9 +9,6 @@ namespace Alloy
 
 open Lean Parser PrettyPrinter Formatter Parenthesizer
 
-#check pushNone
-#check many1
-
 /--
 The parser `many1Lookahead(p, pAhead)`, repeats `p` up to a final `pAhead`.
 It is thus useful when `p` and `pAhead` overlap.
