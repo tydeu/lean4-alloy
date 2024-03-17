@@ -22,7 +22,7 @@ def handleLocation
   bindWaitFindSnap doc (·.endPos > leanPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
     let some shimPos := shim.leanPosToLsp? leanPos | return prev
-    let some ls ← getLs? | return prev
+    let some ls ← getLs? snap.env | return prev
     withFallbackResponse prev do
       let task ← do
         ls.setShimDocument doc.meta.version shim.toString "c"
@@ -44,7 +44,7 @@ def handleCompletion (p : CompletionParams)
   bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) (abortedX := abortedX) fun snap => do
     let shim := getLocalShim snap.env
     let some shimCursorPos := shim.leanPosToLsp? cursorPos (includeStop := true) | return prev
-    let some ls ← getLs? | return prev
+    let some ls ← getLs? snap.env | return prev
     withFallbackResponse prev do
       let task ← do
         ls.setShimDocument doc.meta.version shim.toString "c"

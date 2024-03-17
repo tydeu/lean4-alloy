@@ -105,7 +105,7 @@ def handleSemanticTokens
   bindWaitFindSnap doc afterEnd (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
     if shim.isEmpty then return prev
-    let some ls ← getLs? | return prev
+    let some ls ← getLs? snap.env | return prev
     let some provider := ls.capabilities.semanticTokensProvider? | return prev
     let {tokenTypes, tokenModifiers} := provider.legend
     withFallbackResponse prev do

@@ -49,9 +49,10 @@ def logDiagnosticsAfter (iniPos : String.Pos) : CommandElabM Unit := do
   let opts ← getOptions
   unless shimDiagnostics.get opts do
     return
-  let some ls ← if shimDiagnostics.serverOnly.get opts then getStartedLs? else getLs?
-    | return
-  let shim := getLocalShim (← getEnv)
+  let env ← getEnv
+  let ls? ← if shimDiagnostics.serverOnly.get opts then getStartedLs? env else getLs? env
+  let some ls := ls? | return
+  let shim := getLocalShim env
   let fileName ← getFileName; let fileMap ← getFileMap
   let timeout := shimDiagnostics.timeout.get opts
   let warningSeverity : MessageSeverity :=

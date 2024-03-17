@@ -64,6 +64,18 @@ structure ServerConfig where
 @[inline] def ServerConfig.flags (cfg : ServerConfig) : Array String :=
   cfg.moreIncludePaths.map (s!"-I{·}") ++ cfg.moreFlags
 
+@[inline] def ServerConfig.addFlags (cfg : ServerConfig) (flags : Array String) : ServerConfig :=
+  {cfg with moreFlags := cfg.moreFlags ++ flags}
+
+@[inline] def ServerConfig.addFlag (cfg : ServerConfig) (flag : String) : ServerConfig :=
+  {cfg with moreFlags := cfg.moreFlags.push flag}
+
+@[inline] def ServerConfig.addIncludePath (cfg : ServerConfig) (path : FilePath) : ServerConfig :=
+  {cfg with moreIncludePaths := cfg.moreIncludePaths.push path}
+
+@[inline] def ServerConfig.setLogging (cfg : ServerConfig) (logging : ClangdLogging) : ServerConfig :=
+  {cfg with logging}
+
 structure ClangdDocState where
   leanVer : Nat := 0
   shimEndPos : String.Pos := 0
@@ -204,12 +216,18 @@ is non-interactive).
 -/
 
 /--
-The reference to Alloy's C language sever instance.
+The environment extension which stores a reference to
+the current instance of Alloy's C language sever.
 
 It is wrapped in a mutex because it is has complex volatile state,
 but accessed concurrently by the Lean language server.
+
+It is stored in an environment extension so that a command can restart
+the server for future commands by swapping out the reference while still
+preserving the previous instance for past commands.
 -/
-initialize serverMux : IO.Mutex (LOption ClangdWorker) ← IO.Mutex.new .undef
+initialize serverExt : EnvExtension (Option (IO.Mutex (LOption ClangdWorker))) ←
+  registerEnvExtension (some <$> IO.Mutex.new .undef)
 
 /-- Configuration with which to start Alloy's C language server instance. -/
 initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
@@ -222,8 +240,9 @@ initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
 Return Alloy's C language server.
 Tries to start it exactly once across all calls to this function.
 -/
-def getLs? : BaseIO (Option ClangdWorker) :=
-  serverMux.atomically fun ref => ref.get >>= fun
+def getLs? (env : Environment) : BaseIO (Option ClangdWorker) := do
+  let some mux := serverExt.getState env | return none
+  mux.atomically fun ref => ref.get >>= fun
     | .none => return none
     | .some ls => return some ls
     | .undef => do
@@ -232,69 +251,66 @@ def getLs? : BaseIO (Option ClangdWorker) :=
       return ls?
 
 /-- Return Alloy's C language server if it has already started. -/
-def getStartedLs? : BaseIO (Option ClangdWorker) :=
-  serverMux.atomically fun ref => ref.get >>= fun
+def getStartedLs? (env : Environment) : BaseIO (Option ClangdWorker) := do
+  let some mux := serverExt.getState env | return none
+  mux.atomically fun ref => ref.get >>= fun
     | .some ls => return some ls
     | _ => return none
 
-/--
-Add an include path to Alloy's C language server configuration.
+/-!
+### Server Configuration
 
-### Example
+When writing C code, you may wish to further configure the language server to
+provide better interactive features. For example, you may wish to add additional
+locations to its include path so that go-to-def and the like work function on
+included symbols. To accomplish, there are two ways to modify the configuration
+used by Alloy's C  language server.
 
-Consider a library with its header files located at `/lib/include`
-where one such header file is `foo.h`.
-There are two ways to use this function to add `/lib/include` to the `clangd`
-include path for Alloy's C language server so that `foo.h` can be included
-via `alloy c include "foo.h"`.
+#### Approach 1: Global Change
 
-The most robust approach is to use an `initialize` command to add the
-include path to the configuration during module initialization. This will make
-the path available whenever a another module imports the module with the
-`initialize`.
+One approach is to use an `initialize` command to modify the configuration
+during module initialization. This will apply the change to any module that
+imports the module with the initializer. For example:
 
-**V1/A.lean**
+**Foo.lean**
 ```
 import Alloy.C
-initialize Alloy.C.addServerIncludePath "/lib/include"
+initialize Alloy.C.modifyGlobalServerConfig (·.addIncludePath "/lib/foo/include")
 ```
 
-**V1/B.lean**
+**Bar.lean**
 ```
-import V1.A
-alloy c include "foo.h"
+import Foo
+alloy c include "foo.h" -- will also search in `/lib/foo/include`
 ```
 
-However, this approach requires two modules. To add to the include path
-and make use of it in the same module, one can used an `#eval` command,
-but this has some limitations.
+#### Approach 2: Local Change
 
-**V2.lean**
+Alternatively, one can modify the configuration used in a single module via
+an `#eval` command:
+
 ```
 import Alloy.C
-#eval Alloy.C.addServerIncludePath "/lib/include"
-alloy c include "foo.h"
+#eval Alloy.C.modifyLocalServerConfig (·.addIncludePath "/lib/foo/include")
+alloy c include "foo.h" -- will also search in `/lib/foo/include`
 ```
-
-This will only work if the `#eval` is executed before Alloy
-starts the language server. If the `#eval` is executed afterwards, it will
-have no effect as Alloy never restarts the language server.
-
-Alloy starts the language server for C commands where
-`Alloy.C.shimDiagnostics.serverOnly` has been set to `false` and in an
-interactive context after the file is elaborated once.
-Thus, the safest way to make use of such an `#eval` is to put it at the start
-of a file before any shim code and to restart the language sever (e.g., via the
-`Restart File` command in VSCode) anytime the command is edited.
 -/
-@[inline] def addServerIncludePath (path : FilePath) : IO PUnit := do
-  serverConfig.modify fun cfg =>
-    {cfg with moreIncludePaths := cfg.moreIncludePaths.push path}
 
-/-- Add additional Clang flags to Alloy's C language server configuration. -/
-@[inline] def addServerFlags (flags : Array String) : IO PUnit := do
-  serverConfig.modify fun cfg => {cfg with moreFlags := cfg.moreFlags ++ flags}
+/--
+Modifies the default configuration of Alloy's C language server.
+Suited for use in an `initialize` block.
+See the note above on "Server COnfiguration" for more details.
+-/
+@[inline] def modifyGlobalServerConfig (f : ServerConfig → ServerConfig) : BaseIO PUnit := do
+  serverConfig.modify f
 
-/-- Add an additional Clang flag to Alloy's C language server configuration. -/
-@[inline] def addServerFlag (flag : String) : IO PUnit := do
-  serverConfig.modify fun cfg => {cfg with moreFlags := cfg.moreFlags.push flag}
+/--
+Restarts Alloy's C language server with a modified configuration.
+Suited for use in an `#eval` command.
+See the note above on "Server COnfiguration" for more details.
+-/
+@[inline] def modifyLocalServerConfig (f : ServerConfig → ServerConfig) : CoreM PUnit := do
+  let cfg ← liftM (m := BaseIO) <| serverConfig.get
+  let ls? ← initLs? (f cfg)
+  let mux ← IO.Mutex.new ls?.toLOption
+  modifyEnv fun env => serverExt.setState env mux
