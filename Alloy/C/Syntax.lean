@@ -56,6 +56,7 @@ abbrev Enumerator := TSyntax ``enumerator
 abbrev EnumSig := TSyntax ``enumSig
 abbrev Declaration := TSyntax ``declaration
 abbrev CompStmt := TSyntax ``compStmt
+abbrev LabelStmt := TSyntax ``labelStmt
 abbrev ConstExpr := TSyntax ``constExpr
 
 /-! ### Coercions -/
@@ -152,6 +153,9 @@ instance : Coe Declaration StmtLike where
 
 instance : Coe CompStmt Stmt where
   coe x := Unhygienic.run `(cStmt| $x:compStmt)
+
+instance : Coe LabelStmt Stmt where
+  coe x := Unhygienic.run `(cStmt| $x:labelStmt)
 
 instance : Coe Function ExternDecl where
   coe x := Unhygienic.run `(cExternDecl| $x:function)
