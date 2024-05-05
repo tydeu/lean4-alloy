@@ -72,14 +72,14 @@ def setExtern [Monad m] [MonadEnv m] [MonadError m] (name : Name) (sym : String)
 
 def elabExternImpl (exTk : Syntax) (sym? : Option StrLit) (id : Ident) (bvs : Array BinderSyntaxView)
 (type : Syntax) (body : CompStmt) : CommandElabM Unit := do
-  let name ← resolveGlobalConstNoOverloadWithInfo id
+  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo id
   let (cId, extSym) :=
     match sym? with
     | some sym =>
-      (mkIdentFrom sym sym.getString, sym.getString)
+      (mkIdentFrom sym (.mkSimple sym.getString), sym.getString)
     | none =>
       let extSym := "_alloy_c_" ++ name.mangle
-      (mkIdentFrom id extSym, extSym)
+      (mkIdentFrom id (.mkSimple extSym), extSym)
   withRef id <| setExtern name extSym
   let env ← getEnv
   let some info := env.find? name

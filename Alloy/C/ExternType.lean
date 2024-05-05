@@ -133,7 +133,7 @@ scoped syntax (name := externType)
 
 elab_rules : command
 | `(externType| alloy c extern_type $tid => $cTy* $val:externTypeVal) => do
-  let name ← resolveGlobalConstNoOverloadWithInfo tid
+  let name ←  liftCoreM <| realizeGlobalConstNoOverloadWithInfo tid
   let cfg : ExternType ← id do
     match val with
     | `(externTypeVal|:=%$tk $term) =>

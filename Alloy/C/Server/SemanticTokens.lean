@@ -101,7 +101,7 @@ def handleSemanticTokens
 (beginPos endPos : String.Pos) (prev : RequestTask SemanticTokens)
 : RequestM (RequestTask SemanticTokens) := do
   let doc ← readDoc
-  let afterEnd snap := snap.isAtEnd || snap.beginPos > endPos
+  let afterEnd snap := snap.isAtEnd || snap.endPos ≥ endPos
   bindWaitFindSnap doc afterEnd (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
     if shim.isEmpty then return prev
@@ -136,7 +136,7 @@ def handleSemanticTokens
 def handleSemanticTokensFull
 (_ : SemanticTokensParams) (prev : RequestTask SemanticTokens)
 : RequestM (RequestTask SemanticTokens) := do
-  handleSemanticTokens 0 ⟨1 <<< 31⟩ prev
+  handleSemanticTokens 0 (← readDoc).meta.text.source.endPos prev
 
 def handleSemanticTokensRange
 (p : SemanticTokensRangeParams) (prev : RequestTask SemanticTokens)

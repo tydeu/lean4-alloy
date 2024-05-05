@@ -25,12 +25,16 @@ To use Alloy with your project and build shims for a library, add the following 
 ```lean
 require alloy from git "https://github.com/tydeu/lean4-alloy.git"
 
-module_data alloy.c.o : BuildJob FilePath
-lean_lib <your-lib> {
+module_data alloy.c.o.export : BuildJob FilePath
+module_data alloy.c.o.noexport : BuildJob FilePath
+lean_lib <your-lib> where
   precompileModules := true
-  nativeFacets := #[Module.oFacet, `alloy.c.o]
+  nativeFacets := fun shouldExport =>
+    if shouldExport then
+      #[Module.oExportFacet, `alloy.c.o.export]
+    else
+      #[Module.oNoExportFacet, `alloy.c.o.noexport]
   -- and whatever other configuration options you wish to add
-}
 ```
 
 Take a look at the [examples](examples) to see how all of this works. The [my_add](examples/my_add) example provides a minimal setup whereas the [S](examples/S) example provides a more complete demonstration of Alloy's power.

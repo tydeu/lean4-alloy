@@ -39,9 +39,7 @@ def handleCompletion (p : CompletionParams)
   let doc ← readDoc
   let text := doc.meta.text
   let cursorPos := text.lspPosToUtf8Pos p.position
-  -- work around https://github.com/microsoft/vscode/issues/155738
-  let abortedX := pure <| Task.pure <| .ok { items := #[{label := "-"}], isIncomplete := true }
-  bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) (abortedX := abortedX) fun snap => do
+  bindWaitFindSnap doc (·.endPos >= cursorPos) (notFoundX := pure prev) fun snap => do
     let shim := getLocalShim snap.env
     let some shimCursorPos := shim.leanPosToLsp? cursorPos (includeStop := true) | return prev
     let some ls ← getLs? snap.env | return prev
