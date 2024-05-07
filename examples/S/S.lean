@@ -26,7 +26,7 @@ static S g_s = {0, 0, NULL};
 end
 
 alloy c opaque_extern_type S => S where
-  foreach(s, f) := lean_apply_1(f, s->m_s)
+  foreach(s, f) := lean_inc(f); lean_apply_1(f, s->m_s)
   finalize(s) := lean_dec(s->m_s); free(s)
 
 --------------------------------------------------------------------------------

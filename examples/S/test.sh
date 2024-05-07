@@ -3,4 +3,4 @@ rm -rf .lake
 LAKE=${LAKE:-lake}
 $LAKE build -U
 $LAKE build Test -v
-#.lake/build/bin/s # TODO: Segfaults for some reason
+.lake/build/bin/s

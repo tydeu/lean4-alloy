@@ -1,9 +1,8 @@
 import Lake
 open Lake DSL
 
-package s {
+package s where
   buildType := .debug
-}
 
 require alloy from ".."/".."
 
