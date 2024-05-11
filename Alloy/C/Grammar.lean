@@ -21,6 +21,11 @@ It uses Microsoft's [C Language Syntax Summary][1], the C11 standard's
 
 open Lean Parser
 
+register_option Alloy.C.optSemicolon : Bool := {
+  defValue := true
+  descr := "Should semicolons be optional in Alloy C code?"
+}
+
 namespace Alloy.C
 
 /-!
@@ -642,12 +647,15 @@ The semicolon terminator of a C statement/declaration.
 
 The semicolon is made "optional" to help make partial statements
 well-formed for better LSP support and to enable whitespace-based termination
-in polyglot syntax.
+in polyglot syntax. This behavior can be disabled via
+`set_option Alloy.C.optSemicolon false`.
 
 For the shim, the elaborator will always convert this into a real semicolon,
 even if it has been elided in user code.
 -/
-syntax endSemi := ";"?
+def endSemi : Parser := leading_parser
+  withFn (p := optional (symbol ";")) fun p c s =>
+    if optSemicolon.get c.options then p c s else symbolFn ";" c s
 
 /-- Ensure the previous syntax ended with a semicolon token. -/
 def checkSemi : Parser :=
