@@ -2,7 +2,7 @@ import Alloy.C
 open Alloy.C
 
 open Lean Elab Command in
-#eval show CommandElabM _ from do
+run_cmd
   let leanFile ← IO.FS.realPath <| System.FilePath.mk (← getFileName)
   let includeDir := leanFile.parent.bind (·.parent) |>.get!
   logInfo includeDir.toString
