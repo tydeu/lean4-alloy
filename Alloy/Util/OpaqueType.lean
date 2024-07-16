@@ -62,21 +62,22 @@ syntax (name := opaqueType)
 "opaque_type " declId binders (typeLvSpec)? : command
 
 elab_rules : command
-| `(opaqueType| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?)  => do
+| `(opaqueType| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?) => do
   let docString? ← doc?.mapM getDocStringText
   let attrs ← if let some attrs := attrs? then elabDeclAttrs attrs else pure #[]
   let visibility ← liftMacroM <| expandOptVisibility vis?
   let safety := if uTk?.isSome then DefinitionSafety.unsafe else .safe
   let {declName, ..} ← expandDeclId declId {docString?, visibility}
   runTermElabM fun vars => do
+  let stx ← getRef
   let nt ← if let some (some lv) := lv?? then
     `(NonemptyType.{$lv}) else `(NonemptyType.{0})
   let ntName := declName.str "nonemptyType"
   let ntId := mkIdentFrom declId <| `_root_ ++ ntName
   let ntDefn := mkNode ``Parser.Command.declValSimple
-    #[mkAtomFrom (← getRef) ":=", ← `(default_or_ofNonempty%)]
+    #[mkAtomFrom stx ":=", ← `(default_or_ofNonempty%)]
   Term.elabMutualDef vars #[{
-    ref := (← getRef), kind := .opaque,
+    ref := stx, headerRef := stx, kind := .opaque,
     modifiers := {isUnsafe := safety matches .unsafe},
     declId := declId.raw.setArg 0 ntId, binders := mkNullNode bs,
     type? := nt, value := ntDefn
