@@ -1,6 +1,7 @@
 set -ex
-rm -rf build
+rm -rf .lake
 LAKE=${LAKE:-lake}
-$LAKE build -U
-$LAKE build Eval -v
-.lake/build/bin/run
+$LAKE update
+$LAKE build
+$LAKE lean Eval.lean
+$LAKE exe test

@@ -50,11 +50,9 @@ theorem RawY.dataImpl_eq_data (y : RawY) : y.dataImpl = y.data := rfl
 
 attribute [implemented_by RawY.dataImpl] RawY.data
 
-set_option trace.compiler.ir.result true in
 def addRawY (y : RawY) :=
   y.n + y.m
 
-set_option trace.compiler.ir.result true in
 def addPureY (y : PureY) :=
   addRawY <| .mk y () -- due to lean4#2292, will optimize away `mk` w/o Unit
 

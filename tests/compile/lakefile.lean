@@ -1,7 +1,7 @@
 import Lake
 open System Lake DSL
 
-package my_add
+package test
 
 require alloy from ".."/".."
 module_data alloy.c.o : BuildJob FilePath
@@ -19,6 +19,6 @@ lean_lib Test where
 
 lean_lib Eval
 
-@[default_target]
-lean_exe run where
+@[default_target, test_driver]
+lean_exe test where
   root := `Main

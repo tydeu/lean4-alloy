@@ -18,11 +18,11 @@ pushd tests/compile
 ./test.sh
 popd
 
-find tests/run -type f -name "*.lean" | xargs -n1 $LAKE env lean
+find tests/run -type f -name "*.lean" | xargs -n1 $LAKE lean
 
 # https://github.com/tydeu/lean4-alloy/issues/6
-$LAKE env lean tests/envIncludePath.lean && false || true
-CPATH=$SCRIPT_DIR/tests $LAKE env lean tests/envIncludePath.lean
-C_INCLUDE_PATH=$SCRIPT_DIR/tests $LAKE env lean tests/envIncludePath.lean
+$LAKE lean tests/envIncludePath.lean && false || true
+CPATH=$SCRIPT_DIR/tests $LAKE lean tests/envIncludePath.lean
+C_INCLUDE_PATH=$SCRIPT_DIR/tests $LAKE lean tests/envIncludePath.lean
 
 echo "all done"
