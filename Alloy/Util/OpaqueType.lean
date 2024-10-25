@@ -68,6 +68,7 @@ elab_rules : command
   let visibility ← liftMacroM <| expandOptVisibility vis?
   let safety := if uTk?.isSome then DefinitionSafety.unsafe else .safe
   let {declName, ..} ← expandDeclId declId {docString?, visibility}
+  let sc ← Command.getScope
   runTermElabM fun vars => do
   let stx ← getRef
   let nt ← if let some (some lv) := lv?? then
@@ -76,7 +77,7 @@ elab_rules : command
   let ntId := mkIdentFrom declId <| `_root_ ++ ntName
   let ntDefn := mkNode ``Parser.Command.declValSimple
     #[mkAtomFrom stx ":=", ← `(default_or_ofNonempty%)]
-  Term.elabMutualDef vars #[{
+  Term.elabMutualDef vars sc #[{
     ref := stx, headerRef := stx, kind := .opaque,
     modifiers := {isUnsafe := safety matches .unsafe},
     declId := declId.raw.setArg 0 ntId, binders := mkNullNode bs,
