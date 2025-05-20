@@ -124,7 +124,7 @@ def handleSemanticTokens
         if h : entries.size > 0 then do
           -- Filter out overlapping tokens (preferring the first)
           let entries := entries[1:].foldl (init := #[entries[0]]) fun es b =>
-            let a := es.back
+            let a := es.back!
             if a.line = b.line && (b.startChar ≤ a.startChar + a.length) then
               es
             else

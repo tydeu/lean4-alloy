@@ -1,5 +1,5 @@
 import Lake
-open Lake DSL
+open System Lake DSL
 
 package s where
   buildType := .debug

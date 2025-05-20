@@ -67,7 +67,7 @@ elab_rules : command
   let attrs ← if let some attrs := attrs? then elabDeclAttrs attrs else pure #[]
   let visibility ← liftMacroM <| expandOptVisibility vis?
   let safety := if uTk?.isSome then DefinitionSafety.unsafe else .safe
-  let {declName, ..} ← expandDeclId declId {docString?, visibility}
+  let {declName, ..} ← expandDeclId (← getCurrNamespace) (← getLevelNames) declId {docString?, visibility}
   let sc ← Command.getScope
   runTermElabM fun vars => do
   let stx ← getRef

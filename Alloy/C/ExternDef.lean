@@ -33,5 +33,5 @@ elab_rules : command
   $[$vis?]? $[unsafe%$uTk?]? def $id $bs* : $ty := $stmts*) => do
   let cmd ← `($[$doc?]? $[$attrs?]? $[$vis?]? noncomputable $[unsafe%$uTk?]? opaque $id $[$bs]* : $ty)
   withMacroExpansion (← getRef) cmd <| elabCommand cmd
-  let bvs ← liftMacroM <| bs.concatMapM matchBinder
+  let bvs ← liftMacroM <| bs.flatMapM matchBinder
   elabExternImpl exTk sym? ⟨id.raw[0]⟩ bvs ty (packBody stmts)
