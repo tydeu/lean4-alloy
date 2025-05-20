@@ -39,7 +39,6 @@ def findIRType (constName : Name) : MetaM IR.IRType := do
   | .error e =>
     throwError "could not compile a definition using {constName}: {e.toMessageData opts}"
 
-
 /-- A mapping between a Lean constructor and C constant expression. -/
 syntax enumCtor := ctor " => " cExpr:1000
 
@@ -87,7 +86,8 @@ elab_rules : command
   -- Generate Lean <-> C translators
   let toLean := Name.mkSimple <| "_alloy_to_" ++ name.mangle
   let ofLean := Name.mkSimple <| "_alloy_of_" ++ name.mangle
-  let ctorIdxs := ctors.size.fold (init := #[]) fun n xs => xs.push (quote n)
+  let ctorIdxs := ctors.size.fold (init := Array.mkEmpty ctors.size) fun n _ xs =>
+    xs.push (quote n)
   let cmd ← MonadRef.withRef .missing `(
     alloy c section
     static inline $cType* $(mkIdent ofLean):ident($ffiType:ident v) {
