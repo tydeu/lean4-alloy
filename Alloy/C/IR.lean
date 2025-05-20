@@ -16,6 +16,7 @@ def expandIrObjResultTypeToC : (borrow : Bool) → MacroM TypeSpec
 
 def expandIrResultTypeToC (borrow : Bool) : IRType → MacroM TypeSpec
 | .float      => `(cTypeSpec|double)
+| .float32    => `(cTypeSpec|float)
 | .uint8      => `(cTypeSpec|uint8_t)
 | .uint16     => `(cTypeSpec|uint16_t)
 | .uint32     => `(cTypeSpec|uint32_t)
@@ -33,6 +34,7 @@ def expandIrObjOParamTypeToC : (borrow : Bool) → MacroM TypeSpec
 
 def expandIrParamTypeToC (borrow : Bool) : IRType → MacroM TypeSpec
 | .float      => `(cTypeSpec|double)
+| .float32    => `(cTypeSpec|float)
 | .uint8      => `(cTypeSpec|uint8_t)
 | .uint16     => `(cTypeSpec|uint16_t)
 | .uint32     => `(cTypeSpec|uint32_t)

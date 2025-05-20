@@ -3,6 +3,7 @@ Copyright (c) 2022 Mac Malone. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mac Malone
 -/
+import Std.Sync.Mutex
 import Lean.Data.Lsp.Communication
 import Alloy.Util.Server.Methods
 
@@ -65,8 +66,8 @@ deriving instance Inhabited for Json.Structured
 /-- A running language server process. -/
 structure LsWorker (α : Type) where
   child : IO.Process.Child pipedStdioConfig
-  state : IO.Mutex (LsState α)
-  notificationHandlers : IO.Mutex NotificationHandlerMap
+  state : Std.Mutex (LsState α)
+  notificationHandlers : Std.Mutex NotificationHandlerMap
   capabilities : ServerCapabilities := {}
   info? : Option ServerInfo := none
 
@@ -134,8 +135,8 @@ def call (self : LsWorker σ) (method : String) [LsCall method α β] (param : �
 Read all LSP messages from `stream`, completing requests from `state`.
 TODO: Handle request messages.
 -/
-partial def readLspMessages (stream : IO.FS.Stream) (state : IO.Mutex (LsState σ))
-(notificationHandlers : IO.Mutex NotificationHandlerMap) : BaseIO Unit := do
+partial def readLspMessages (stream : IO.FS.Stream) (state : Std.Mutex (LsState σ))
+(notificationHandlers : Std.Mutex NotificationHandlerMap) : BaseIO Unit := do
   match (← stream.readLspMessage.toBaseIO) with
   | .ok msg =>
     match msg with
@@ -181,8 +182,8 @@ def init
 : IO (LsWorker σ) := do
   let child ← IO.Process.spawn {cmd, args, toStdioConfig := pipedStdioConfig}
   discard <| BaseIO.asTask <| pipeLines (IO.FS.Stream.ofHandle child.stderr) (← IO.getStderr)
-  let state ← IO.Mutex.new {data}
-  let notificationHandlers ← IO.Mutex.new {}
+  let state ← Std.Mutex.new {data}
+  let notificationHandlers ← Std.Mutex.new {}
   discard <| BaseIO.asTask <|
     readLspMessages (IO.FS.Stream.ofHandle child.stdout) state notificationHandlers
   let ls : LsWorker σ := {child, state, notificationHandlers}

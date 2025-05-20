@@ -25,8 +25,8 @@ To use Alloy with your project and build shims for a library, add the following 
 ```lean
 require alloy from git "https://github.com/tydeu/lean4-alloy.git"
 
-module_data alloy.c.o.export : BuildJob FilePath
-module_data alloy.c.o.noexport : BuildJob FilePath
+module_data alloy.c.o.export : Job FilePath
+module_data alloy.c.o.noexport : Job FilePath
 lean_lib <your-lib> where
   precompileModules := true
   nativeFacets := fun shouldExport =>

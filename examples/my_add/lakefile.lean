@@ -5,8 +5,8 @@ package my_add
 
 require alloy from ".."/".."
 
-module_data alloy.c.o.export : BuildJob FilePath
-module_data alloy.c.o.noexport : BuildJob FilePath
+module_data alloy.c.o.export : Job FilePath
+module_data alloy.c.o.noexport : Job FilePath
 lean_lib MyAdd where
   precompileModules := true
   nativeFacets := fun shouldExport =>

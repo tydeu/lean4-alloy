@@ -27,18 +27,17 @@ module_facet alloy.c mod : FilePath := do
   let exeJob ← alloy.fetch
   let modJob ← mod.olean.fetch
   let cFile := mod.irPath "alloy.c"
-  exeJob.bindAsync fun exeFile exeTrace => do
-  modJob.bindSync fun _ modTrace => do
-    let depTrace := exeTrace.mix modTrace
-    let trace ← buildFileUnlessUpToDate cFile depTrace do
+  exeJob.bindM fun exeFile => do
+  modJob.mapM fun _ => do
+    buildFileUnlessUpToDate' cFile do
       proc {
         cmd := exeFile.toString
         args := #[mod.name.toString, cFile.toString]
         env := #[("LEAN_PATH", (← getLeanPath).toString)]
       }
-    return (cFile, trace)
+    return cFile
 
-@[inline] def buildAlloyCO (mod : Module) (shouldExport : Bool) : FetchM (BuildJob FilePath) := do
+@[inline] def buildAlloyCO (mod : Module) (shouldExport : Bool) : FetchM (Job FilePath) := do
   let oFile := mod.irPath s!"alloy.c.o.{if shouldExport then "export" else "noexport"}"
   let cJob ← fetch <| mod.facet `alloy.c
   let weakArgs := #["-I", (← getLeanIncludeDir).toString] ++ mod.weakLeancArgs

@@ -227,8 +227,8 @@ It is stored in an environment extension so that a command can restart
 the server for future commands by swapping out the reference while still
 preserving the previous instance for past commands.
 -/
-initialize serverExt : EnvExtension (Option (IO.Mutex (LOption ClangdWorker))) ←
-  registerEnvExtension (some <$> IO.Mutex.new .undef)
+initialize serverExt : EnvExtension (Option (Std.Mutex (LOption ClangdWorker))) ←
+  registerEnvExtension (some <$> Std.Mutex.new .undef)
 
 /-- Configuration with which to start Alloy's C language server instance. -/
 initialize serverConfig : IO.Ref ServerConfig ← do IO.mkRef {
@@ -313,5 +313,5 @@ See the note above on "Server COnfiguration" for more details.
 @[inline] def modifyLocalServerConfig (f : ServerConfig → ServerConfig) : CoreM PUnit := do
   let cfg ← liftM (m := BaseIO) <| serverConfig.get
   let ls? ← initLs? (f cfg)
-  let mux ← IO.Mutex.new ls?.toLOption
+  let mux ← Std.Mutex.new ls?.toLOption
   modifyEnv fun env => serverExt.setState env mux
