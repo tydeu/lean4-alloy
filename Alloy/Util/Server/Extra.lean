@@ -41,12 +41,14 @@ def shimRequestError [ToString α] : ResponseError α → RequestError
   let data := data?.map (s!"\n{·}") |>.getD ""
   .mk code s!"Shim language server request {id} failed: {message}{data}"
 
-def mergeResponses (shimTask : Task (Except (ResponseError Json) α))
-(leanTask : RequestTask α) (f : α → α → RequestM α) : RequestM (RequestTask α) := do
-  bindTask shimTask fun
+def mergeResponses
+  (shimTask : ServerTask (Except (ResponseError Json) α))
+  (leanTask : RequestTask α) (f : α → α → RequestM α)
+: RequestM (RequestTask α) := do
+  bindTaskCheap shimTask fun
   | .ok shimResult => do
-    bindTask leanTask fun
+    mapTaskCostly leanTask fun
     | .ok leanResult =>
-      return Task.pure <| .ok <| ← f shimResult leanResult
+      f shimResult leanResult
     | .error e => throw e
   | .error e => throw <| shimRequestError e

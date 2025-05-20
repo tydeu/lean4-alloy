@@ -181,12 +181,9 @@ def ClangdWorker.readyShimDocument
   (ls : ClangdWorker) (timeout : UInt32 := 0)
 : IO Unit := do
   if let some p ← ls.state.atomically (·.get <&> (·.data.ready?)) then
-    if timeout > 0 then
-      unless  (← wait? p.result timeout).isSome do
-        throw <| .userError <|
-          "clangd took to long to ready the shim document"
-    else
-      IO.wait p.result
+    unless (← wait? p timeout).isSome do
+      throw <| .userError <|
+        "clangd took to long to ready the shim document"
 
 def ClangdWorker.collectShimDiagnostics
   (ls : ClangdWorker) (timeout : UInt32 := 0)
@@ -194,15 +191,12 @@ def ClangdWorker.collectShimDiagnostics
   match (← ls.state.atomically (·.get <&> (·.data.diagnostics))) with
   | .inl ds => return ds
   | .inr p =>
-    if timeout > 0 then
-      if let some diagnostics ← wait? p.result timeout then
-        return diagnostics
-      else
-        throw <| .userError <|
-          "Could not collect clangd diagnostics for the shim: " ++
-          "clangd took too long to load the document"
+    if let some diagnostics ← wait? p timeout then
+      return diagnostics
     else
-      IO.wait p.result
+      throw <| .userError <|
+        "Could not collect clangd diagnostics for the shim: " ++
+        "clangd took too long to load the document"
 
 /-! ## Language Server Instance
 

@@ -118,7 +118,7 @@ def call (self : LsWorker σ) (method : String) [LsCall method α β] (param : �
     let p ← Promise.new
     ref.set {s with nextID := id + 1, responseMap := s.responseMap.insert id p}
     return (id, p)
-  BaseIO.mapTask (t := p.result) fun r => do
+  BaseIO.mapTask (t := p.result!) fun r => do
     self.state.atomically (·.modify fun s => {s with responseMap := s.responseMap.erase id})
     return match r with
     | .ok r =>

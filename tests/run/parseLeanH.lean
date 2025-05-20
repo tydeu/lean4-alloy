@@ -20,7 +20,7 @@ partial def Lean.Data.Trie.erase {α} (t : Trie α) (s : String) : Trie α :=
         let c := s.getUtf8Byte i h
         match cs.findIdx? (· == c) with
         | none => node v cs ts
-        | some idx => node v cs <| ts.setIfInBounds idx <| loop (i+1) (ts.get! idx)
+        | some idx => node v cs <| ts.setIfInBounds idx <| loop (i+1) ts[idx]!
       else
         node none cs ts
   loop 0 t
