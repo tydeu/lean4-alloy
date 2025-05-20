@@ -30,14 +30,16 @@ def findIRType (constName : Name) : MetaM IR.IRType := do
     value := ← mkLambdaFVars as <| mkApp (mkConst ``id [← getLevel type]) type
     isUnsafe := false
   }
-  let opts ← getOptions
-  match (← getEnv).addAndCompile opts decl with
-  | .ok env =>
-    let some decl := IR.findEnvDecl env name
+  try
+    let oldEnv ← getEnv
+    addAndCompile decl
+    let newEnv ← getEnv
+    setEnv oldEnv
+    let some decl := IR.findEnvDecl newEnv name
       | throwError "could not get IR of definition using {constName}"
     return decl.resultType
-  | .error e =>
-    throwError "could not compile a definition using {constName}: {e.toMessageData opts}"
+  catch e =>
+    throwError "could not compile a definition using {constName}: {e.toMessageData}"
 
 /-- A mapping between a Lean constructor and C constant expression. -/
 syntax enumCtor := ctor " => " cExpr:1000

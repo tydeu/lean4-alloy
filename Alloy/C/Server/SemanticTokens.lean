@@ -90,7 +90,7 @@ def decodeShimTokens
     let modMask := bitMaskOfArray SemanticTokenModifier.names mods
     let some type := types[type]?
       | continue -- Ditto
-    let some type := SemanticTokenType.names.indexOf? type
+    let some type := SemanticTokenType.names.idxOf? type
       | continue -- Skip semantic token types not supported by the Lean server
     let leanLen := text.source.extract pos tailPos |>.length
     let leanLen := shim.text.source.codepointPosToUtf16PosFrom leanLen pos
@@ -117,7 +117,7 @@ def handleSemanticTokens
         let leanEntries := decodeLeanTokens leanTokens.data
         -- Stable sort the combined entries (Lean first)
         let entries := leanEntries ++ shimEntries
-        let entries := entries.zipWithIndex
+        let entries := entries.zipIdx
         let entries := entries.qsort fun (a,i) (b,j) =>
           a.line < b.line ∨ (a.line = b.line ∧ (a.startChar < b.startChar ∨ (a.startChar = b.startChar ∧ i < j)))
         let entries := entries.map (·.1)
