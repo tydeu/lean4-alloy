@@ -62,8 +62,7 @@ syntax (name := opaqueType)
 "opaque_type " declId binders (typeLvSpec)? : command
 
 elab_rules : command
-| `(opaqueType| $(doc?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?) => do
-  let docString? ← doc?.mapM getDocStringText
+| `(opaqueType| $(docString?)? $(attrs?)? $(vis?)? $[unsafe%$uTk?]? opaque_type $declId $bs* $[: Type $(lv??)?]?) => do
   let attrs ← if let some attrs := attrs? then elabDeclAttrs attrs else pure #[]
   let visibility ← liftMacroM <| expandOptVisibility vis?
   let safety := if uTk?.isSome then DefinitionSafety.unsafe else .safe

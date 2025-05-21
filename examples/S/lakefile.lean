@@ -12,9 +12,9 @@ lean_lib S where
   precompileModules := true
   nativeFacets := fun shouldExport =>
     if shouldExport then
-      #[Module.oExportFacet, `alloy.c.o.export]
+      #[Module.oExportFacet, `module.alloy.c.o.export]
     else
-      #[Module.oNoExportFacet, `alloy.c.o.noexport]
+      #[Module.oNoExportFacet, `module.alloy.c.o.noexport]
 
 @[default_target]
 lean_exe s where

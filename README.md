@@ -31,9 +31,9 @@ lean_lib <your-lib> where
   precompileModules := true
   nativeFacets := fun shouldExport =>
     if shouldExport then
-      #[Module.oExportFacet, `alloy.c.o.export]
+      #[Module.oExportFacet, `module.alloy.c.o.export]
     else
-      #[Module.oNoExportFacet, `alloy.c.o.noexport]
+      #[Module.oNoExportFacet, `module.alloy.c.o.noexport]
   -- and whatever other configuration options you wish to add
 ```
 
