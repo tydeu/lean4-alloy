@@ -57,27 +57,6 @@ def isNullUri (uri : DocumentUri) : Bool :=
 : IO Unit :=
   Lean.Server.chainLspRequestHandler method α β handler
 
-class LsLeanState (method : String) (σ : outParam $ Type u)
-  extends TypeName σ
-
---instance : LsLeanState "textDocument/semanticTokens/full" SemanticTokensState := {}
-
-/--
-Chains a new statless handler to a stateful LSP request handler. Uses `LsCall`.
-
-An adaption of `Lean.Server.chainLspRequestHandler` & `Lean.Server.chainStatefulLspRequestHandler`.
--/
-@[macro_inline] def chainPureStatelessLspRequestHandler
-  (method : String) [LsCall method α β] [LsLeanState method σ]
-  [FileSource α] [FromJson α] [ToJson β]
-  (handler : α → β → RequestM β)
-: IO Unit := do
-  Lean.Server.chainStatefulLspRequestHandler method α β σ
-    (fun p r s => do
-      let b ← handler p r.response
-      return ({r with response := b}, s))
-    (fun _ => pure ())
-
 /--
 Chains a new statless handler to a stateful LSP request handler. Uses `LsCall`.
 
