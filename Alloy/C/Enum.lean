@@ -23,7 +23,7 @@ def findIRType (constName : Name) : MetaM IR.IRType := do
   forallTelescope info.type fun as _ => do
   let levels := levelParams.map mkLevelParam
   let type := mkAppN (mkConst constName levels) as
-  let name ← mkAuxName constName 0
+  let name ← mkAuxDeclName constName
   let decl := .opaqueDecl {
     name, levelParams
     type := ← mkForallFVars as <| ← mkArrow type type
